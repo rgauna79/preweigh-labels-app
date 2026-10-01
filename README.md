@@ -1,5 +1,7 @@
 # Label Master – Preweigh tags
 
+Creado por **Roberto Gauna** · Created by Roberto Gauna
+
 App para generar e imprimir los tags de preweigh (Preweigh, Missing y Keep in Refer).
 React + Vite + Tailwind. Las fórmulas y el logo son **compartidos**: se guardan en
 Upstash Redis mediante una función de Vercel (`api/[route].js`).

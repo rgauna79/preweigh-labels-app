@@ -22,7 +22,7 @@ const STRINGS = {
     'print.one': 'Print 1 sheet', 'print.many': 'Print {n} sheets',
     'sheet.pre': 'Pallet {i} of {n} · Preweigh', 'sheet.mis': 'Pallet {i} of {n} · Missing',
     'sheet.ref1': 'Refer · For the refrigerated pallet', 'sheet.ref2': 'Refer · For the batch record',
-    lang: 'Language',
+    lang: 'Language', credit: 'Created by Roberto Gauna',
     // Formula manager
     'fm.title': 'Shared formulas ({n})', 'fm.close': 'Close', 'fm.search': 'Search code or name',
     'fm.add': 'Add', 'fm.import': 'Import CSV', 'fm.export': 'Export',
@@ -60,7 +60,7 @@ const STRINGS = {
     'print.one': 'Imprimir 1 hoja', 'print.many': 'Imprimir {n} hojas',
     'sheet.pre': 'Pallet {i} de {n} · Preweigh', 'sheet.mis': 'Pallet {i} de {n} · Missing',
     'sheet.ref1': 'Refer · Para el pallet de refrigerados', 'sheet.ref2': 'Refer · Para el batch record',
-    lang: 'Idioma',
+    lang: 'Idioma', credit: 'Creado por Roberto Gauna',
     'fm.title': 'Fórmulas compartidas ({n})', 'fm.close': 'Cerrar', 'fm.search': 'Buscar código o nombre',
     'fm.add': 'Agregar', 'fm.import': 'Importar CSV', 'fm.export': 'Exportar',
     'fm.colFormula': 'Fórmula', 'fm.colName': 'Nombre', 'fm.namePh': 'Nombre del producto',

@@ -2,6 +2,7 @@
   "name": "preweigh-labels-app",
   "private": true,
   "version": "1.0.0",
+  "author": "Roberto Gauna",
   "type": "module",
   "scripts": {
     "dev": "vite",

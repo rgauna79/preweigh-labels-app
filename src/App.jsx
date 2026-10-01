@@ -313,6 +313,7 @@ export default function App() {
             <button onClick={() => printSet()} className="w-full bg-violet-600 hover:bg-violet-700 text-white font-extrabold py-3.5 rounded-lg flex items-center justify-center gap-2 shadow-md transition-colors">
               <Printer size={20} /> {sheets.length === 1 ? t('print.one') : t('print.many', { n: sheets.length })}
             </button>
+            <p className="text-center text-[11px] font-semibold text-slate-400">{t('credit')}</p>
           </footer>
         </aside>
 
