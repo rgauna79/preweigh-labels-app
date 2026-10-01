@@ -1,23 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Papa from 'papaparse';
-import { Download, Eraser, FileSpreadsheet, ImagePlus, Minus, Plus, Printer, SkipForward, Tags } from 'lucide-react';
-import { LABEL_H, LABEL_W, getPages } from './Labels.jsx';
-
-const FORMATS = [
-  { id: 'preweigh', name: 'Preweigh Pallet Tag' },
-  { id: 'missing', name: 'Preweigh Pallet Missing' },
-  { id: 'refer', name: 'Keep in Refer' },
-];
-
-const REQUIRED = {
-  preweigh: { date: 'Fecha', formula: 'Formula', name: 'Name', batch: 'Batch#', po: 'P.O.#', batches: 'Batches' },
-  missing: { date: 'Fecha', name: 'Name', batch: 'Batch#', po: 'P.O.#', batches: 'Batches' },
-  refer: { name: 'Name', formula: 'Formula', batches: 'Batches' },
-};
+import { Download, Eraser, FileSpreadsheet, ImagePlus, Printer, Tags } from 'lucide-react';
+import { LABEL_H, LABEL_W, buildSheets } from './Labels.jsx';
 
 const EMPTY = {
-  date: '', formula: '', name: '', batch: '', po: '', batches: '',
-  palletNum: '1', palletTotal: '1', ile: 'ILE', identifier: '',
+  date: '', formula: '', name: '', batch: '', po: '', batches: '', ile: 'ILE', identifier: '',
   missing1: '', missing2: '', missing3: '', missing4: '',
   refer1: '', refer2: '', refer3: '', refer4: '',
 };
@@ -57,19 +44,17 @@ function Section({ title, children }) {
 }
 
 export default function App() {
-  const [format, setFormat] = useState(() => load('lm.format', 'preweigh'));
   const [data, setData] = useState(() => ({ ...EMPTY, ...load('lm.data', {}), date: todayStr() }));
+  const [job, setJob] = useState(() => ({ pallets: 1, withMissing: false, withRefer: false, ...load('lm.job', {}) }));
   const [formulas, setFormulas] = useState(() => load('lm.formulas', []));
   const [logo, setLogo] = useState(() => load('lm.logo', null));
-  const [copies, setCopies] = useState(1);
-  const [referPages, setReferPages] = useState('both');
   const [status, setStatus] = useState('');
   const logoInput = useRef(null);
 
-  useEffect(() => save('lm.format', format), [format]);
   useEffect(() => save('lm.data', { ...data, date: '' }), [data]);
+  useEffect(() => save('lm.job', job), [job]);
 
-  const pages = useMemo(() => getPages(format, data, referPages), [format, data, referPages]);
+  const sheets = useMemo(() => buildSheets(data, job), [data, job]);
 
   // --- Vista previa escalada al ancho disponible ---
   const wrapRef = useRef(null);
@@ -79,8 +64,7 @@ export default function App() {
     if (!el) return;
     const ro = new ResizeObserver(() => {
       const w = el.clientWidth - 64;
-      const h = el.clientHeight - 64;
-      setScale(Math.max(0.3, Math.min(1, w / LABEL_W, h / LABEL_H)));
+      setScale(Math.max(0.3, Math.min(1, w / LABEL_W)));
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -96,7 +80,7 @@ export default function App() {
     setData((d) => ({
       ...d,
       formula: value,
-      ...(match ? { name: match.name || d.name, identifier: match.identifier || d.identifier, ile: match.ile || 'ILE' } : {}),
+      ...(match ? { name: match.name || d.name, ile: match.ile || 'ILE' } : {}),
     }));
     setStatus(
       formulas.length && norm(value) && !match ? `Fórmula "${norm(value)}" no está en la base de datos.` : ''
@@ -115,7 +99,6 @@ export default function App() {
           .map((r) => ({
             formula: norm(r.formula),
             name: norm(r.name),
-            identifier: norm(r.identifier ?? r.id),
             ile: norm(r.ile),
           }))
           .filter((r) => r.formula);
@@ -124,7 +107,7 @@ export default function App() {
         setStatus(
           list.length
             ? `${list.length} fórmulas cargadas.`
-            : 'No se encontraron fórmulas. El CSV necesita las columnas: Formula, Name, Identifier, ILE.'
+            : 'No se encontraron fórmulas. El CSV necesita las columnas: Formula, Name (y opcional ILE).'
         );
       },
     });
@@ -143,18 +126,17 @@ export default function App() {
     e.target.value = '';
   };
 
-  const nextPallet = () => {
-    const n = parseInt(data.palletNum, 10);
-    if (!Number.isNaN(n)) set('palletNum', String(n + 1));
+  const newBatch = () =>
+    setData((d) => ({ ...EMPTY, date: d.date, ile: d.ile }));
+
+  const required = {
+    formula: 'Formula', name: 'Name', batch: 'Batch#', po: 'P.O.#', batches: 'Batches', identifier: 'ID',
   };
+  const emptyFields = Object.entries(required).filter(([k]) => !norm(data[k])).map(([, l]) => l);
+  if (job.withMissing && ![1, 2, 3, 4].some((n) => norm(data[`missing${n}`]))) emptyFields.push('Ingredientes faltantes');
+  if (job.withRefer && ![1, 2, 3, 4].some((n) => norm(data[`refer${n}`]))) emptyFields.push('Ingredientes refrigerados');
 
-  const clearFields = () =>
-    setData((d) => ({ ...EMPTY, date: d.date, palletTotal: d.palletTotal, ile: d.ile }));
-
-  const missing = Object.entries(REQUIRED[format]).filter(([k]) => !norm(data[k]));
-  const totalSheets = pages.length * copies;
-
-  const sample = 'Formula,Name,Identifier,ILE\n300909,CYBK Women\'s Hormone,ID-G9FB71,ILE\n300888,ANCN Tropical Collagen Gel,ID-CF9DC9,ILE\n';
+  const sample = 'Formula,Name,ILE\n300909,CYBK Women\'s Hormone,ILE\n300888,ANCN Tropical Collagen Gel,ILE\n';
   const downloadSample = () => {
     const url = URL.createObjectURL(new Blob([sample], { type: 'text/csv' }));
     const a = Object.assign(document.createElement('a'), { href: url, download: 'formulas-ejemplo.csv' });
@@ -173,107 +155,78 @@ export default function App() {
         <aside className="w-[380px] shrink-0 bg-white border-r border-slate-200 flex flex-col">
           <header className="px-5 py-4 bg-violet-600 text-white flex items-center gap-3">
             <Tags size={26} />
-            <div>
+            <div className="flex-1">
               <h1 className="text-lg font-extrabold leading-tight">Label Master</h1>
               <p className="text-xs text-violet-200">Pre-weigh tags</p>
             </div>
+            <button onClick={newBatch} title="Nuevo batch (limpia los campos)" className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-white/15 hover:bg-white/25 text-xs font-bold">
+              <Eraser size={14} /> Nuevo
+            </button>
           </header>
 
           <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
-            <Section title="Formato">
+            <Section title="Batch">
+              <div className="grid gap-2">
+                <input
+                  name="formula" list="formula-list" value={data.formula}
+                  onChange={(e) => applyFormula(e.target.value)} placeholder="Formula (ej. 300909)" className={inputCls}
+                />
+                <datalist id="formula-list">
+                  {formulas.map((f) => <option key={f.formula} value={f.formula}>{f.name}</option>)}
+                </datalist>
+                {text('name', 'Name')}
+                <div className="grid grid-cols-2 gap-2">
+                  {text('batch', 'Batch#')}
+                  {text('batches', 'Batches (ej. 3/19)')}
+                </div>
+                {text('po', 'P.O.#')}
+                <div className="grid grid-cols-2 gap-2">
+                  {text('date', 'Fecha MM/DD/YY')}
+                  {text('identifier', 'ID-XXXXXX')}
+                </div>
+                {text('ile', 'ILE')}
+              </div>
+            </Section>
+
+            <Section title="Pallets">
               <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100 rounded-lg">
-                {FORMATS.map((f) => (
+                {[1, 2, 3].map((n) => (
                   <button
-                    key={f.id}
-                    onClick={() => setFormat(f.id)}
-                    className={`py-2 px-1 rounded-md text-xs font-bold leading-tight transition-colors ${
-                      format === f.id ? 'bg-white shadow text-violet-700' : 'text-slate-500 hover:text-slate-800'
+                    key={n}
+                    onClick={() => setJob((j) => ({ ...j, pallets: n }))}
+                    className={`py-2 rounded-md text-sm font-extrabold transition-colors ${
+                      job.pallets === n ? 'bg-white shadow text-violet-700' : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
-                    {f.name}
+                    {n} {n === 1 ? 'pallet' : 'pallets'}
                   </button>
                 ))}
               </div>
             </Section>
 
-            <Section title="Datos">
-              <div className="grid gap-2">
-                {format !== 'missing' && (
-                  <>
-                    <input
-                      name="formula"
-                      list="formula-list"
-                      value={data.formula}
-                      onChange={(e) => applyFormula(e.target.value)}
-                      placeholder="Formula (ej. 300909)"
-                      className={inputCls}
-                    />
-                    <datalist id="formula-list">
-                      {formulas.map((f) => (
-                        <option key={f.formula} value={f.formula}>{f.name}</option>
-                      ))}
-                    </datalist>
-                  </>
-                )}
-                {text('name', 'Name')}
-                {format !== 'refer' && (
-                  <div className="grid grid-cols-2 gap-2">
-                    {text('date', 'Fecha MM/DD/YY')}
-                    {text('batch', 'Batch#')}
-                  </div>
-                )}
-                <div className="grid grid-cols-2 gap-2">
-                  {text('batches', 'Batches (ej. 3/19)')}
-                  {format !== 'refer' && text('po', 'P.O.#')}
-                </div>
-                {format !== 'refer' && (
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                    Pallet
-                    <input name="palletNum" value={data.palletNum} onChange={onChange} className={`${inputCls} !w-14 text-center`} />
-                    de
-                    <input name="palletTotal" value={data.palletTotal} onChange={onChange} className={`${inputCls} !w-14 text-center`} />
-                    <button onClick={nextPallet} title="Siguiente pallet" className="ml-auto flex items-center gap-1 px-2.5 py-2 rounded-md bg-slate-100 hover:bg-slate-200 text-xs font-bold">
-                      <SkipForward size={14} /> Siguiente
-                    </button>
-                  </div>
-                )}
-                {format === 'preweigh' && (
-                  <div className="grid grid-cols-2 gap-2">
-                    {text('ile', 'ILE')}
-                    {text('identifier', 'ID-XXXXXX')}
-                  </div>
-                )}
-                {format === 'refer' && (
-                  <div className="grid grid-cols-2 gap-2">
-                    {text('ile', 'ILE')}
-                    {text('identifier', 'ID-XXXXXX')}
-                  </div>
-                )}
-              </div>
-            </Section>
-
-            {format === 'missing' && (
-              <Section title="Ingredientes faltantes">
+            <Section title="Ingredientes faltantes">
+              <label className="flex items-center gap-2 text-sm font-semibold mb-2 cursor-pointer">
+                <input type="checkbox" checked={job.withMissing} onChange={(e) => setJob((j) => ({ ...j, withMissing: e.target.checked }))} className="w-4 h-4 accent-rose-600" />
+                Faltan ingredientes (1 tag Missing por pallet)
+              </label>
+              {job.withMissing && (
                 <div className="grid gap-2 p-3 rounded-lg bg-rose-50 border border-rose-200">
                   {[1, 2, 3, 4].map((n) => text(`missing${n}`, `Missing ${n}`))}
                 </div>
-              </Section>
-            )}
+              )}
+            </Section>
 
-            {format === 'refer' && (
-              <Section title="Ingredientes refrigerados">
+            <Section title="Ingredientes refrigerados">
+              <label className="flex items-center gap-2 text-sm font-semibold mb-2 cursor-pointer">
+                <input type="checkbox" checked={job.withRefer} onChange={(e) => setJob((j) => ({ ...j, withRefer: e.target.checked }))} className="w-4 h-4 accent-sky-600" />
+                Lleva refrigerados (2 hojas Refer)
+              </label>
+              {job.withRefer && (
                 <div className="grid gap-2 p-3 rounded-lg bg-sky-50 border border-sky-200">
                   {[1, 2, 3, 4].map((n) => text(`refer${n}`, `Refer ${n}`))}
                 </div>
-                <div className="mt-2 grid grid-cols-3 gap-1 p-1 bg-slate-100 rounded-lg text-xs font-bold">
-                  {[['both', '2 páginas'], ['1', 'Solo KEEP'], ['2', 'Solo ITEMS']].map(([v, l]) => (
-                    <button key={v} onClick={() => setReferPages(v)} className={`py-1.5 rounded-md ${referPages === v ? 'bg-white shadow text-violet-700' : 'text-slate-500'}`}>
-                      {l}
-                    </button>
-                  ))}
-                </div>
-              </Section>
-            )}
+              )}
+            </Section>
 
             <Section title="Base de datos de fórmulas (CSV)">
               <label className="flex items-center gap-2 px-3 py-2.5 rounded-md border border-dashed border-slate-300 hover:border-violet-400 hover:bg-violet-50 cursor-pointer text-sm font-semibold text-slate-600">
@@ -287,61 +240,53 @@ export default function App() {
               {status && <p className="mt-1.5 text-xs font-semibold text-amber-700">{status}</p>}
             </Section>
 
-            {format === 'preweigh' && (
-              <Section title="Logo">
-                <input ref={logoInput} type="file" accept="image/*" onChange={onLogo} className="hidden" />
-                <div className="flex gap-2">
-                  <button onClick={() => logoInput.current?.click()} className="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-100 hover:bg-slate-200 text-sm font-semibold">
-                    <ImagePlus size={16} /> {logo ? 'Cambiar logo' : 'Subir logo'}
+            <Section title="Logo">
+              <input ref={logoInput} type="file" accept="image/*" onChange={onLogo} className="hidden" />
+              <div className="flex gap-2">
+                <button onClick={() => logoInput.current?.click()} className="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-100 hover:bg-slate-200 text-sm font-semibold">
+                  <ImagePlus size={16} /> {logo ? 'Cambiar logo' : 'Subir logo'}
+                </button>
+                {logo && (
+                  <button onClick={() => { setLogo(null); save('lm.logo', null); }} className="px-3 py-2 rounded-md text-sm font-semibold text-slate-500 hover:bg-slate-100">
+                    Quitar
                   </button>
-                  {logo && (
-                    <button onClick={() => { setLogo(null); save('lm.logo', null); }} className="px-3 py-2 rounded-md text-sm font-semibold text-slate-500 hover:bg-slate-100">
-                      Quitar
-                    </button>
-                  )}
-                </div>
-              </Section>
-            )}
+                )}
+              </div>
+            </Section>
           </div>
 
           <footer className="p-5 border-t border-slate-200 bg-slate-50 flex flex-col gap-3">
-            {missing.length > 0 && (
-              <p className="text-xs font-semibold text-amber-700">Vacío: {missing.map(([, l]) => l).join(', ')}</p>
+            {emptyFields.length > 0 && (
+              <p className="text-xs font-semibold text-amber-700">Vacío: {emptyFields.join(', ')}</p>
             )}
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-slate-600 mr-auto">Copias</span>
-              <button onClick={() => setCopies((c) => Math.max(1, c - 1))} className="p-2 rounded-md bg-white border border-slate-300 hover:bg-slate-100" aria-label="Menos copias"><Minus size={14} /></button>
-              <span className="w-8 text-center font-extrabold">{copies}</span>
-              <button onClick={() => setCopies((c) => Math.min(50, c + 1))} className="p-2 rounded-md bg-white border border-slate-300 hover:bg-slate-100" aria-label="Más copias"><Plus size={14} /></button>
-              <button onClick={clearFields} title="Limpiar campos" className="p-2 ml-2 rounded-md bg-white border border-slate-300 hover:bg-slate-100" aria-label="Limpiar campos"><Eraser size={16} /></button>
-            </div>
             <button onClick={() => window.print()} className="w-full bg-violet-600 hover:bg-violet-700 text-white font-extrabold py-3.5 rounded-lg flex items-center justify-center gap-2 shadow-md transition-colors">
-              <Printer size={20} /> Imprimir {totalSheets} {totalSheets === 1 ? 'hoja' : 'hojas'}
+              <Printer size={20} /> Imprimir {sheets.length} {sheets.length === 1 ? 'hoja' : 'hojas'}
             </button>
           </footer>
         </aside>
 
         {/* VISTA PREVIA */}
         <main ref={wrapRef} className="flex-1 overflow-auto p-8 flex flex-col items-center gap-8">
-          {pages.map((Page, i) => (
-            <div key={i} style={{ width: LABEL_W * scale, height: LABEL_H * scale }} className="shrink-0 shadow-xl bg-white">
-              <div style={{ width: LABEL_W, height: LABEL_H, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
-                <Page data={data} logo={logo} onLogoClick={() => logoInput.current?.click()} />
+          {sheets.map(({ key, label, Comp, data: d }) => (
+            <div key={key} className="shrink-0">
+              <p className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">{label}</p>
+              <div style={{ width: LABEL_W * scale, height: LABEL_H * scale }} className="shadow-xl bg-white">
+                <div style={{ width: LABEL_W, height: LABEL_H, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+                  <Comp data={d} logo={logo} onLogoClick={() => logoInput.current?.click()} />
+                </div>
               </div>
             </div>
           ))}
         </main>
       </div>
 
-      {/* SALIDA DE IMPRESIÓN: una hoja Letter horizontal por etiqueta y copia */}
+      {/* SALIDA DE IMPRESIÓN: una hoja Letter horizontal por etiqueta */}
       <div className="print-root">
-        {Array.from({ length: copies }).flatMap((_, c) =>
-          pages.map((Page, i) => (
-            <div key={`${c}-${i}`} className="sheet">
-              <Page data={data} logo={logo} />
-            </div>
-          ))
-        )}
+        {sheets.map(({ key, Comp, data: d }) => (
+          <div key={key} className="sheet">
+            <Comp data={d} logo={logo} />
+          </div>
+        ))}
       </div>
     </>
   );

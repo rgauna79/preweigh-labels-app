@@ -153,10 +153,25 @@ export function ReferPage2({ data }) {
   );
 }
 
-/** Páginas que genera cada formato, según la opción elegida para Refer. */
-export function getPages(format, data, referPages) {
-  if (format === 'preweigh') return [PreweighTag];
-  if (format === 'missing') return [MissingTag];
-  const pages = [ReferPage1, ReferPage2];
-  return referPages === '1' ? [pages[0]] : referPages === '2' ? [pages[1]] : pages;
+/**
+ * Arma el juego de hojas de un batch:
+ *  - por cada pallet: tag Preweigh (y su tag Missing si faltan ingredientes)
+ *  - si hay refrigerados: hoja "KEEP IN REFER" (va en el pallet de refrigerados)
+ *    y hoja "ITEMS IN REFER" (se anexa al batch record)
+ */
+export function buildSheets(data, { pallets, withMissing, withRefer }) {
+  const sheets = [];
+  const n = Math.max(1, pallets);
+  for (let i = 1; i <= n; i++) {
+    const d = { ...data, palletNum: String(i), palletTotal: String(n) };
+    sheets.push({ key: `pre${i}`, label: `Pallet ${i} de ${n} · Preweigh`, Comp: PreweighTag, data: d });
+    if (withMissing) {
+      sheets.push({ key: `mis${i}`, label: `Pallet ${i} de ${n} · Missing`, Comp: MissingTag, data: d });
+    }
+  }
+  if (withRefer) {
+    sheets.push({ key: 'ref1', label: 'Refer · Para el pallet de refrigerados', Comp: ReferPage1, data });
+    sheets.push({ key: 'ref2', label: 'Refer · Para el batch record', Comp: ReferPage2, data });
+  }
+  return sheets;
 }
