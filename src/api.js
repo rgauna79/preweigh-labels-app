@@ -1,4 +1,4 @@
-// Cliente de la API compartida (netlify/functions/api.mjs).
+// Cliente de la API compartida (api/[route].js).
 const PIN_KEY = 'lm.pin';
 
 const getPin = () => {
@@ -50,16 +50,22 @@ export async function writeFormulas(op, items) {
 export async function fetchLogo() {
   const res = await call('logo', { cache: 'no-store' });
   if (!res.ok) return null;
-  const blob = await res.blob();
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.readAsDataURL(blob);
-  });
+  return (await res.json()).dataUrl || null;
 }
 
+const toDataUrl = (blob) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+
 export async function uploadLogo(blob) {
-  await withPin(() => call('logo', { method: 'PUT', headers: { 'content-type': blob.type }, body: blob }));
+  const dataUrl = await toDataUrl(blob);
+  await withPin(() =>
+    call('logo', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ dataUrl }) })
+  );
 }
 
 export async function deleteLogo() {
