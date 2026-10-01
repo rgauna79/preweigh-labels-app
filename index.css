@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@media print {
+  @page {
+    size: letter landscape;
+    margin: 0;
+  }
+  body {
+    background: white;
+    padding: 0;
+    margin: 0;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .no-print-bg {
+    background: transparent !important;
+  }
+  .print-area {
+    border: 8px solid black !important;
+    box-shadow: none !important;
+    width: 10.5in !important;
+    height: 8in !important;
+    margin: 0.25in auto !important;
+    padding: 0.5in 0.6in !important;
+    page-break-after: always;
+  }
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  /* Forzamos que las lineas negras de los inputs se impriman */
+  .input-print {
+    border: none !important;
+    border-bottom: 4px solid black !important;
+    color: black !important;
+    background: transparent !important;
+  }
+  .box-print {
+    border: 6px solid black !important;
+  }
+}
