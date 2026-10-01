@@ -34,18 +34,30 @@ export function FitText({ text, max, min = 14, className = '', style }) {
   );
 }
 
-// Columnas comunes a todas las filas: [etiqueta | línea A | "of" | línea B].
-// Así las líneas de todos los campos empiezan y terminan en el mismo punto.
-const GRID = 'grid grid-cols-[300px_1fr_70px_1fr] items-end';
+// Todas las filas de una etiqueta son celdas de UNA sola cuadrícula:
+// [etiqueta | línea A | "of" | línea B]. La 1ª columna mide lo que la palabra más larga
+// ("Date Weighed:", "Number Pallet"), así todas las líneas arrancan en el mismo punto.
 const LINE = 'border-b-[3px] border-black text-center font-bold pb-0.5';
+const LABEL = 'label-text pr-3.5';
+
+function TagGrid({ children }) {
+  return (
+    <div
+      className="flex-1 grid items-end"
+      style={{ gridTemplateColumns: 'max-content 1fr 70px 1fr', alignContent: 'space-between' }}
+    >
+      {children}
+    </div>
+  );
+}
 
 /** Una fila de la etiqueta: texto + línea que ocupa todo el ancho restante. */
 function Field({ label, value }) {
   return (
-    <div className={GRID}>
-      <span className="label-text pr-5">{label}</span>
+    <>
+      <span className={LABEL}>{label}</span>
       <FitText text={value} max={42} className={`col-span-3 ${LINE}`} />
-    </div>
+    </>
   );
 }
 
@@ -63,12 +75,12 @@ function Logo({ logo }) {
 
 function PalletRow({ data }) {
   return (
-    <div className={GRID}>
-      <span className="label-text pr-5">Number Pallet</span>
+    <>
+      <span className={LABEL}>Number Pallet</span>
       <FitText text={data.palletNum} max={42} className={LINE} />
       <span className="label-text text-center">of</span>
       <FitText text={data.palletTotal} max={42} className={LINE} />
-    </div>
+    </>
   );
 }
 
@@ -99,29 +111,29 @@ function ItemList({ items, area, maxFont, min = 14, weight = 'font-medium' }) {
 
 export function PreweighTag({ data, logo, onLogoClick }) {
   return (
-    <div className="label-page flex flex-col justify-between">
-      <div className={GRID}>
-        <span className="label-text pr-5">Date Weighed:</span>
+    <div className="label-page flex flex-col">
+      <TagGrid>
+        <span className={LABEL}>Date Weighed:</span>
         <FitText text={data.date} max={44} className={LINE} />
         <span />
         <div onClick={onLogoClick} className="cursor-pointer pl-6" title="Cambiar logo">
           <Logo logo={logo} />
         </div>
-      </div>
-      <Field label="Formula:" value={data.formula} />
-      <Field label="Name:" value={data.name} />
-      <Field label="Batch#" value={data.batch} />
-      <Field label="P.O.#" value={data.po} />
-      <Field label="Batches:" value={data.batches} />
-      <PalletRow data={data} />
-      <div className="grid grid-cols-2 gap-6 h-[96px]">
-        <div className="border-[3px] border-black flex items-center px-4">
-          <FitText text={data.ile} max={56} className="text-center font-black" />
+        <Field label="Formula:" value={data.formula} />
+        <Field label="Name:" value={data.name} />
+        <Field label="Batch#" value={data.batch} />
+        <Field label="P.O.#" value={data.po} />
+        <Field label="Batches:" value={data.batches} />
+        <PalletRow data={data} />
+        <div className="col-span-4 grid grid-cols-2 gap-6 h-[96px]">
+          <div className="border-[3px] border-black flex items-center px-4">
+            <FitText text={data.ile} max={56} className="text-center font-black" />
+          </div>
+          <div className="border-[3px] border-black flex items-center px-4">
+            <FitText text={formatId(data.identifier)} max={56} className="text-center font-black" />
+          </div>
         </div>
-        <div className="border-[3px] border-black flex items-center px-4">
-          <FitText text={formatId(data.identifier)} max={56} className="text-center font-black" />
-        </div>
-      </div>
+      </TagGrid>
     </div>
   );
 }
@@ -130,25 +142,28 @@ export function MissingTag({ data }) {
   const items = toItems(data.missing);
   const many = items.length > 4;
   return (
-    <div className="label-page flex flex-col justify-between">
-      <Field label="Date Weighed:" value={data.date} />
-      <Field label="Name:" value={data.name} />
-      <Field label="Batch#:" value={data.batch} />
-      <Field label="P.O.#" value={data.po} />
-      <Field label="Batches:" value={data.batches} />
-      <PalletRow data={data} />
-      {/* Hasta 4: una línea por ingrediente con su rótulo. Más de 4: encabezado y lista en columnas. */}
-      {!many && items.length > 0 && (
-        <div className="flex flex-col gap-3 pt-2">
-          {items.map((t, i) => (
-            <div key={i} className={GRID}>
-              <span className="text-[19px] font-medium tracking-wide pr-5 pb-1 whitespace-nowrap">MISSING INGREDIENT</span>
+    <div className="label-page flex flex-col">
+      <TagGrid>
+        <Field label="Date Weighed:" value={data.date} />
+        <Field label="Name:" value={data.name} />
+        <Field label="Batch#:" value={data.batch} />
+        <Field label="P.O.#" value={data.po} />
+        <Field label="Batches:" value={data.batches} />
+        <PalletRow data={data} />
+        {/* Hasta 4: una línea por ingrediente con su rótulo. Más de 4: encabezado y lista en columnas. */}
+        {!many &&
+          items.map((t, i) => (
+            <React.Fragment key={i}>
+              <span className="text-[19px] font-medium tracking-wide pr-3.5 pb-1 whitespace-nowrap">MISSING INGREDIENT</span>
               <FitText text={t} max={28} className="col-span-3 border-b-[3px] border-black font-medium pb-0.5" />
-            </div>
+            </React.Fragment>
           ))}
-        </div>
-      )}
-      {many && <MissingMany items={items} />}
+        {many && (
+          <div className="col-span-4">
+            <MissingMany items={items} />
+          </div>
+        )}
+      </TagGrid>
     </div>
   );
 }
@@ -159,7 +174,7 @@ function MissingMany({ items }) {
   const rowH = Math.min(40, Math.floor(250 / rows));
   const font = Math.max(12, Math.floor(rowH * 0.62));
   return (
-    <div className="pt-2">
+    <div>
       <div className="text-[19px] font-bold tracking-wide mb-1">MISSING INGREDIENTS</div>
       <div className="grid gap-x-8" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gridAutoFlow: 'column', gridTemplateRows: `repeat(${rows}, ${rowH}px)` }}>
         {items.map((t, i) => (

@@ -73,7 +73,10 @@ export default function App() {
   }, []);
 
   const set = (name, value) => setData((d) => ({ ...d, [name]: value }));
-  const onChange = (e) => set(e.target.name, e.target.value);
+  const onChange = (e) => {
+    if (e.target.name === 'date') dateEdited.current = true;
+    set(e.target.name, e.target.value);
+  };
 
   const norm = (s) => String(s ?? '').trim();
 
@@ -95,11 +98,21 @@ export default function App() {
       .catch(() => setServerError('Sin conexión con el servidor: no se puede leer la lista compartida.'));
     fetchLogo().then(setLogo).catch(() => {});
   };
+  // La fecha es la de hoy salvo que se haya escrito otra a mano.
+  const dateEdited = useRef(false);
   useEffect(() => {
+    const onFocus = () => {
+      refresh(); // otra persona pudo cambiar algo mientras tanto
+      if (!dateEdited.current) setData((d) => ({ ...d, date: todayStr() })); // la app pudo quedar abierta de un día a otro
+    };
     refresh();
-    window.addEventListener('focus', refresh); // otra persona pudo cambiar algo mientras tanto
-    return () => window.removeEventListener('focus', refresh);
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, []);
+  const setToday = () => {
+    dateEdited.current = false;
+    set('date', todayStr());
+  };
 
   const trimmedFormula = norm(data.formula);
   const saved = formulas.find((f) => f.formula.toLowerCase() === trimmedFormula.toLowerCase());
@@ -150,7 +163,7 @@ export default function App() {
   };
 
   const newBatch = () =>
-    setData((d) => ({ ...EMPTY, date: d.date, ile: d.ile }));
+    setData((d) => ({ ...EMPTY, date: dateEdited.current ? d.date : todayStr(), ile: d.ile }));
 
   const required = {
     formula: 'Formula', name: 'Name', batch: 'Batch#', po: 'P.O.#', batches: 'Batches', identifier: 'ID',
@@ -203,7 +216,12 @@ export default function App() {
                 </div>
                 {text('po', 'P.O.#')}
                 <div className="grid grid-cols-2 gap-2">
-                  {text('date', 'Fecha MM/DD/YY')}
+                  <div className="relative">
+                    {text('date', 'Fecha MM/DD/YY', 'pr-14')}
+                    {data.date !== todayStr() && (
+                      <button onClick={setToday} title="Poner la fecha de hoy" className="absolute right-1.5 top-1.5 px-2 py-1 rounded bg-violet-100 text-violet-700 text-xs font-bold hover:bg-violet-200">Hoy</button>
+                    )}
+                  </div>
                   <div className="flex items-center border border-slate-300 rounded-md bg-white focus-within:ring-2 focus-within:ring-violet-500 focus-within:border-violet-500">
                     <span className="pl-3 text-sm font-extrabold text-slate-400 select-none">ID-</span>
                     <input name="identifier" value={stripId(data.identifier)} onChange={(e) => set('identifier', stripId(e.target.value))} placeholder="G9FB71" className="w-full px-1.5 py-2 text-sm font-semibold text-slate-900 bg-transparent outline-none" />
