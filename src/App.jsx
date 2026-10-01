@@ -87,32 +87,55 @@ export default function App() {
     );
   };
 
+  const parseCsv = (input, onDone) =>
+    Papa.parse(input, {
+      header: true,
+      skipEmptyLines: true,
+      transformHeader: (h) => h.replace(/^\uFEFF/, '').trim().toLowerCase(),
+      complete: ({ data: rows }) =>
+        onDone(
+          rows
+            .map((r) => ({ formula: norm(r.formula), name: norm(r.name), ile: norm(r.ile) }))
+            .filter((r) => r.formula)
+        ),
+    });
+
   const onCsv = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      transformHeader: (h) => h.replace(/^﻿/, '').trim().toLowerCase(),
-      complete: ({ data: rows }) => {
-        const list = rows
-          .map((r) => ({
-            formula: norm(r.formula),
-            name: norm(r.name),
-            ile: norm(r.ile),
-          }))
-          .filter((r) => r.formula);
-        setFormulas(list);
-        save('lm.formulas', list);
-        setStatus(
-          list.length
-            ? `${list.length} fórmulas cargadas.`
-            : 'No se encontraron fórmulas. El CSV necesita las columnas: Formula, Name (y opcional ILE).'
-        );
-      },
+    parseCsv(file, (list) => {
+      setFormulas(list);
+      save('lm.formulas', list);
+      setStatus(
+        list.length
+          ? `${list.length} fórmulas cargadas (solo en este navegador).`
+          : 'No se encontraron fórmulas. El CSV necesita las columnas: Formula, Name (y opcional ILE).'
+      );
     });
     e.target.value = '';
   };
+
+  // Archivos compartidos: public/formulas.csv y public/logo.png viajan con la app.
+  // Si existen, tienen prioridad sobre lo que cada navegador haya guardado.
+  useEffect(() => {
+    const base = import.meta.env.BASE_URL;
+    fetch(`${base}formulas.csv`, { cache: 'no-cache' })
+      .then((r) => (r.ok ? r.text() : Promise.reject()))
+      .then((txt) => {
+        if (txt.trimStart().startsWith('<')) return; // el servidor devolvió una página HTML, no un CSV
+        parseCsv(txt, (list) => list.length && setFormulas(list));
+      })
+      .catch(() => {});
+    fetch(`${base}logo.png`, { cache: 'no-cache' })
+      .then((r) => (r.ok && r.headers.get('content-type')?.startsWith('image/') ? r.blob() : Promise.reject()))
+      .then((blob) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => setLogo(ev.target.result);
+        reader.readAsDataURL(blob);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onLogo = (e) => {
     const file = e.target.files?.[0];

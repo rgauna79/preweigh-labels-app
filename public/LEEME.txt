@@ -1,0 +1,6 @@
+Archivos compartidos de la app (todos los usuarios los ven al abrirla):
+
+  formulas.csv  -> columnas: Formula, Name, ILE (ILE es opcional)
+  logo.png      -> logo que sale en el tag Preweigh (agrégalo aquí)
+
+Para actualizarlos: reemplaza el archivo, haz commit y push. El host vuelve a desplegar solo.
