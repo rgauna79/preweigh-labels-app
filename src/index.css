@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: Calibri, Carlito, 'Segoe UI', Arial, sans-serif;
+}
+
+/* Etiqueta: 10.5in x 8in a 96 dpi */
+.label-page {
+  width: 1008px;
+  height: 768px;
+  padding: 36px 56px;
+  box-sizing: border-box;
+  background: #fff;
+  color: #000;
+  position: relative;
+}
+.label-text {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.logo-placeholder {
+  font-size: 14px;
+  color: #94a3b8;
+  border: 1px dashed #cbd5e1;
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+
+.print-root {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: letter landscape;
+    margin: 0;
+  }
+  html,
+  body {
+    background: #fff;
+    margin: 0;
+    padding: 0;
+  }
+  .app-root {
+    display: none !important;
+  }
+  .print-root {
+    display: block;
+  }
+  /* Hoja Letter horizontal (11 x 8.5in) con la etiqueta centrada */
+  .sheet {
+    width: 11in;
+    height: 8.45in;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    break-after: page;
+  }
+  .sheet:last-child {
+    break-after: auto;
+  }
+  .logo-placeholder {
+    display: none;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
