@@ -56,7 +56,7 @@ function Field({ label, value }) {
   return (
     <>
       <span className={LABEL}>{label}</span>
-      <FitText text={value} max={42} className={`col-span-3 ${LINE}`} />
+      <FitText text={value} max={48} className={`col-span-3 ${LINE}`} />
     </>
   );
 }
@@ -73,13 +73,37 @@ function Logo({ logo }) {
   );
 }
 
+/** Fila de la fecha, con el logo a la derecha (Preweigh y Missing). */
+function DateRow({ data, logo, onLogoClick }) {
+  return (
+    <>
+      <span className={LABEL}>Date Weighed:</span>
+      <FitText text={data.date} max={50} className={LINE} />
+      <span />
+      <div onClick={onLogoClick} className="cursor-pointer pl-6" title="Logo">
+        <Logo logo={logo} />
+      </div>
+    </>
+  );
+}
+
+/** Logo en la esquina superior derecha (hojas de Refer). Reserva la franja superior con REFER_TOP. */
+const REFER_TOP = 116;
+function LogoCorner({ logo, onLogoClick }) {
+  return (
+    <div onClick={onLogoClick} className="absolute top-[36px] right-[56px] w-[280px] cursor-pointer" title="Logo">
+      <Logo logo={logo} />
+    </div>
+  );
+}
+
 function PalletRow({ data }) {
   return (
     <>
       <span className={LABEL}>Number Pallet</span>
-      <FitText text={data.palletNum} max={42} className={LINE} />
+      <FitText text={data.palletNum} max={48} className={LINE} />
       <span className="label-text text-center">of</span>
-      <FitText text={data.palletTotal} max={42} className={LINE} />
+      <FitText text={data.palletTotal} max={48} className={LINE} />
     </>
   );
 }
@@ -113,12 +137,7 @@ export function PreweighTag({ data, logo, onLogoClick }) {
   return (
     <div className="label-page flex flex-col">
       <TagGrid>
-        <span className={LABEL}>Date Weighed:</span>
-        <FitText text={data.date} max={44} className={LINE} />
-        <span />
-        <div onClick={onLogoClick} className="cursor-pointer pl-6" title="Cambiar logo">
-          <Logo logo={logo} />
-        </div>
+        <DateRow data={data} logo={logo} onLogoClick={onLogoClick} />
         <Field label="Formula:" value={data.formula} />
         <Field label="Name:" value={data.name} />
         <Field label="Batch#" value={data.batch} />
@@ -138,13 +157,13 @@ export function PreweighTag({ data, logo, onLogoClick }) {
   );
 }
 
-export function MissingTag({ data }) {
+export function MissingTag({ data, logo, onLogoClick }) {
   const items = toItems(data.missing);
   const many = items.length > 4;
   return (
     <div className="label-page flex flex-col">
       <TagGrid>
-        <Field label="Date Weighed:" value={data.date} />
+        <DateRow data={data} logo={logo} onLogoClick={onLogoClick} />
         <Field label="Name:" value={data.name} />
         <Field label="Batch#:" value={data.batch} />
         <Field label="P.O.#" value={data.po} />
@@ -154,8 +173,8 @@ export function MissingTag({ data }) {
         {!many &&
           items.map((t, i) => (
             <React.Fragment key={i}>
-              <span className="text-[19px] font-medium tracking-wide pr-3.5 pb-1 whitespace-nowrap">MISSING INGREDIENT</span>
-              <FitText text={t} max={28} className="col-span-3 border-b-[3px] border-black font-medium pb-0.5" />
+              <span className="text-[22px] font-medium tracking-wide pr-3.5 pb-1 whitespace-nowrap">MISSING INGREDIENT</span>
+              <FitText text={t} max={32} className="col-span-3 border-b-[3px] border-black font-medium pb-0.5" />
             </React.Fragment>
           ))}
         {many && (
@@ -171,11 +190,11 @@ export function MissingTag({ data }) {
 function MissingMany({ items }) {
   const cols = items.length <= 16 ? 2 : 3;
   const rows = Math.ceil(items.length / cols);
-  const rowH = Math.min(40, Math.floor(250 / rows));
-  const font = Math.max(12, Math.floor(rowH * 0.62));
+  const rowH = Math.min(44, Math.floor(200 / rows));
+  const font = Math.max(12, Math.floor(rowH * 0.66));
   return (
     <div>
-      <div className="text-[19px] font-bold tracking-wide mb-1">MISSING INGREDIENTS</div>
+      <div className="text-[22px] font-bold tracking-wide mb-1">MISSING INGREDIENTS</div>
       <div className="grid gap-x-8" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gridAutoFlow: 'column', gridTemplateRows: `repeat(${rows}, ${rowH}px)` }}>
         {items.map((t, i) => (
           <FitText key={i} text={t} max={font} min={11} className="border-b-2 border-black font-medium" />
@@ -185,35 +204,37 @@ function MissingMany({ items }) {
   );
 }
 
-export function ReferPage1({ data }) {
+export function ReferPage1({ data, logo, onLogoClick }) {
   const items = toItems(data.refer);
   const batchLine = [data.formula, data.name, data.batches].filter(Boolean).join(' ');
   return (
-    <div className="label-page flex flex-col items-center text-center">
+    <div className="label-page flex flex-col items-center text-center" style={{ paddingTop: REFER_TOP }}>
+      <LogoCorner logo={logo} onLogoClick={onLogoClick} />
       <div className="text-[84px] font-black leading-none">{data.ile || 'ILE'}</div>
       <div className="text-[92px] font-black leading-none mt-3">KEEP IN REFER:</div>
       <div className="flex-1 w-full flex items-center pt-4 pb-4">
-        <ItemList items={items} area={250} maxFont={48} min={16} />
+        <ItemList items={items} area={200} maxFont={54} min={16} />
       </div>
       <div className="w-full">
-        <div className="text-[50px] font-black leading-tight">BATCH:</div>
-        <FitText text={batchLine} max={48} min={22} className="font-black text-center" />
+        <div className="text-[56px] font-black leading-tight">BATCH:</div>
+        <FitText text={batchLine} max={54} min={22} className="font-black text-center" />
         <FitText text={formatId(data.identifier)} max={48} className="font-black text-center" />
       </div>
     </div>
   );
 }
 
-export function ReferPage2({ data }) {
+export function ReferPage2({ data, logo, onLogoClick }) {
   const items = toItems(data.refer);
   const compact = items.length > 4; // con muchos ítems el título se achica para dejar espacio
   const title = compact ? 84 : 112;
   return (
-    <div className="label-page flex flex-col items-center text-center">
+    <div className="label-page flex flex-col items-center text-center" style={{ paddingTop: REFER_TOP }}>
+      <LogoCorner logo={logo} onLogoClick={onLogoClick} />
       <div className="font-black leading-none" style={{ fontSize: title }}>ITEMS IN</div>
       <div className="font-black leading-none" style={{ fontSize: title, marginTop: compact ? 14 : 36 }}>REFER {data.ile || 'ILE'}</div>
       <div className="flex-1 w-full flex items-center pt-4">
-        <ItemList items={items} area={compact ? 400 : 300} maxFont={56} min={16} />
+        <ItemList items={items} area={compact ? 380 : 280} maxFont={62} min={16} />
       </div>
     </div>
   );
