@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BookmarkPlus, Eraser, ImagePlus, ListChecks, Printer, Tags } from 'lucide-react';
 import FormulaManager from './FormulaManager.jsx';
-import { parseFormulasCsv } from './formulas.js';
+import { deleteLogo, fetchFormulas, fetchLogo, shrinkImage, uploadLogo, writeFormulas } from './api.js';
 import { LABEL_H, LABEL_W, buildSheets } from './Labels.jsx';
 
 const EMPTY = {
@@ -47,10 +47,11 @@ function Section({ title, children }) {
 export default function App() {
   const [data, setData] = useState(() => ({ ...EMPTY, ...load('lm.data', {}), date: todayStr() }));
   const [job, setJob] = useState(() => ({ pallets: 1, withMissing: false, withRefer: false, ...load('lm.job', {}) }));
-  const [formulas, setFormulas] = useState(() => load('lm.formulas', []));
+  const [formulas, setFormulas] = useState([]);
   const [showFormulas, setShowFormulas] = useState(false);
-  const [logo, setLogo] = useState(() => load('lm.logo', null));
+  const [logo, setLogo] = useState(null);
   const [status, setStatus] = useState('');
+  const [serverError, setServerError] = useState('');
   const logoInput = useRef(null);
 
   useEffect(() => save('lm.data', { ...data, date: '' }), [data]);
@@ -85,66 +86,68 @@ export default function App() {
       ...(match ? { name: match.name || d.name, ile: match.ile || 'ILE' } : {}),
     }));
     setStatus(
-      formulas.length && norm(value) && !match ? `Fórmula "${norm(value)}" no está en la lista: escribe el nombre y guárdala.` : ''
+      formulas.length && norm(value) && !match ? `Fórmula "${norm(value)}" es nueva: escribe el nombre y se guardará para todos al imprimir.` : ''
     );
   };
 
-  // Cualquier cambio hecho por el usuario se guarda en este navegador.
-  const updateFormulas = (list) => {
-    setFormulas(list);
-    save('lm.formulas', list);
+  // --- Datos compartidos (servidor): fórmulas y logo ---
+  const refresh = () => {
+    fetchFormulas().then((list) => { setFormulas(list); setServerError(''); })
+      .catch(() => setServerError('Sin conexión con el servidor: no se puede leer la lista compartida.'));
+    fetchLogo().then(setLogo).catch(() => {});
   };
-
-  const fetchSharedFormulas = (onDone) =>
-    fetch(`${import.meta.env.BASE_URL}formulas.csv`, { cache: 'no-cache' })
-      .then((r) => (r.ok ? r.text() : Promise.reject()))
-      .then((txt) => {
-        if (txt.trimStart().startsWith('<')) return; // el servidor devolvió HTML, no un CSV
-        parseFormulasCsv(txt, (list) => list.length && onDone(list));
-      })
-      .catch(() => {});
-
-  const resetFormulas = () => {
-    try { localStorage.removeItem('lm.formulas'); } catch { /* sin almacenamiento */ }
-    setFormulas([]);
-    fetchSharedFormulas(setFormulas);
-  };
+  useEffect(() => {
+    refresh();
+    window.addEventListener('focus', refresh); // otra persona pudo cambiar algo mientras tanto
+    return () => window.removeEventListener('focus', refresh);
+  }, []);
 
   const trimmedFormula = norm(data.formula);
   const saved = formulas.find((f) => f.formula.toLowerCase() === trimmedFormula.toLowerCase());
   const canSaveFormula = trimmedFormula && norm(data.name) && (!saved || saved.name !== norm(data.name));
-  const saveFormula = () => {
-    const entry = { formula: trimmedFormula, name: norm(data.name), ile: saved?.ile || '' };
-    updateFormulas(saved ? formulas.map((f) => (f === saved ? entry : f)) : [entry, ...formulas]);
-    setStatus(saved ? `Nombre de ${trimmedFormula} actualizado.` : `Fórmula ${trimmedFormula} guardada en la lista.`);
+  const entryFromForm = () => ({ formula: trimmedFormula, name: norm(data.name), ile: saved?.ile || '' });
+
+  const saveFormula = async () => {
+    try {
+      setFormulas(await writeFormulas(saved ? 'upsert' : 'add', [entryFromForm()]));
+      setStatus(saved ? `Nombre de ${trimmedFormula} actualizado.` : `Fórmula ${trimmedFormula} guardada para todos.`);
+    } catch (err) {
+      setStatus(err.message);
+    }
   };
 
-  // Archivos compartidos: public/formulas.csv (lista inicial, solo si el usuario no tiene la suya)
-  // y public/logo.png (si existe, tiene prioridad sobre el logo guardado en el navegador).
-  useEffect(() => {
-    const base = import.meta.env.BASE_URL;
-    if (!load('lm.formulas', []).length) fetchSharedFormulas(setFormulas);
-    fetch(`${base}logo.png`, { cache: 'no-cache' })
-      .then((r) => (r.ok && r.headers.get('content-type')?.startsWith('image/') ? r.blob() : Promise.reject()))
-      .then((blob) => {
-        const reader = new FileReader();
-        reader.onload = (ev) => setLogo(ev.target.result);
-        reader.readAsDataURL(blob);
-      })
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Acciones del administrador de fórmulas (cada cambio se guarda en el servidor).
+  const saveEntry = async (oldCode, entry) => {
+    if (oldCode && oldCode.toLowerCase() !== entry.formula.toLowerCase()) await writeFormulas('delete', [{ formula: oldCode }]);
+    setFormulas(await writeFormulas('upsert', [entry]));
+  };
+  const deleteEntry = async (code) => setFormulas(await writeFormulas('delete', [{ formula: code }]));
+  const importEntries = async (list) => setFormulas(await writeFormulas('upsert', list));
 
+  const changeLogo = async (file) => {
+    try {
+      await uploadLogo(await shrinkImage(file));
+      setLogo(await fetchLogo());
+      setStatus('Logo actualizado para todos.');
+    } catch (err) {
+      setStatus(err.message);
+    }
+  };
+  const removeLogo = async () => {
+    try { await deleteLogo(); setLogo(null); setStatus('Logo quitado.'); } catch (err) { setStatus(err.message); }
+  };
   const onLogo = (e) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setLogo(ev.target.result);
-      save('lm.logo', ev.target.result);
-    };
-    reader.readAsDataURL(file);
+    if (file) changeLogo(file);
     e.target.value = '';
+  };
+
+  // Al imprimir, si la fórmula es nueva se agrega sola a la lista compartida.
+  const printSet = async () => {
+    if (trimmedFormula && norm(data.name) && !saved) {
+      try { setFormulas(await writeFormulas('add', [entryFromForm()])); } catch { /* imprimir igual */ }
+    }
+    window.print();
   };
 
   const newBatch = () =>
@@ -188,9 +191,10 @@ export default function App() {
                   {formulas.filter((f) => f.formula).map((f, i) => <option key={i} value={f.formula}>{f.name}</option>)}
                 </datalist>
                 {text('name', 'Name')}
+                {serverError && <p className="text-xs font-semibold text-rose-600">{serverError}</p>}
                 {canSaveFormula && (
                   <button onClick={saveFormula} className="flex items-center gap-1.5 text-xs font-bold text-violet-700 hover:underline justify-self-start">
-                    <BookmarkPlus size={14} /> {saved ? 'Actualizar nombre en la lista' : 'Guardar fórmula en la lista'}
+                    <BookmarkPlus size={14} /> {saved ? 'Actualizar nombre para todos' : 'Guardar fórmula para todos'}
                   </button>
                 )}
                 {status && <p className="text-xs font-semibold text-amber-700">{status}</p>}
@@ -255,14 +259,14 @@ export default function App() {
               </button>
             </Section>
 
-            <Section title="Logo">
+            <Section title="Logo (compartido)">
               <input ref={logoInput} type="file" accept="image/*" onChange={onLogo} className="hidden" />
               <div className="flex gap-2">
                 <button onClick={() => logoInput.current?.click()} className="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-100 hover:bg-slate-200 text-sm font-semibold">
                   <ImagePlus size={16} /> {logo ? 'Cambiar logo' : 'Subir logo'}
                 </button>
                 {logo && (
-                  <button onClick={() => { setLogo(null); save('lm.logo', null); }} className="px-3 py-2 rounded-md text-sm font-semibold text-slate-500 hover:bg-slate-100">
+                  <button onClick={removeLogo} className="px-3 py-2 rounded-md text-sm font-semibold text-slate-500 hover:bg-slate-100">
                     Quitar
                   </button>
                 )}
@@ -274,7 +278,7 @@ export default function App() {
             {emptyFields.length > 0 && (
               <p className="text-xs font-semibold text-amber-700">Vacío: {emptyFields.join(', ')}</p>
             )}
-            <button onClick={() => window.print()} className="w-full bg-violet-600 hover:bg-violet-700 text-white font-extrabold py-3.5 rounded-lg flex items-center justify-center gap-2 shadow-md transition-colors">
+            <button onClick={() => printSet()} className="w-full bg-violet-600 hover:bg-violet-700 text-white font-extrabold py-3.5 rounded-lg flex items-center justify-center gap-2 shadow-md transition-colors">
               <Printer size={20} /> Imprimir {sheets.length} {sheets.length === 1 ? 'hoja' : 'hojas'}
             </button>
           </footer>
@@ -296,7 +300,7 @@ export default function App() {
       </div>
 
       {showFormulas && (
-        <FormulaManager formulas={formulas} onChange={updateFormulas} onReset={resetFormulas} onClose={() => setShowFormulas(false)} />
+        <FormulaManager formulas={formulas} onSave={saveEntry} onDelete={deleteEntry} onImport={importEntries} onClose={() => setShowFormulas(false)} />
       )}
 
       {/* SALIDA DE IMPRESIÓN: una hoja Letter horizontal por etiqueta */}
