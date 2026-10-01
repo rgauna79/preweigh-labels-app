@@ -1,4 +1,5 @@
 // Cliente de la API compartida (api/[route].js).
+import { tr } from './i18n.js';
 const PIN_KEY = 'lm.pin';
 
 const getPin = () => {
@@ -20,22 +21,25 @@ async function call(path, init = {}) {
 async function withPin(run) {
   let res = await run();
   if (res.status === 401) {
-    const pin = window.prompt('Se requiere el PIN de edición:');
-    if (pin === null) throw new Error('Cancelado');
+    const pin = window.prompt(tr('pin.prompt'));
+    if (pin === null) throw new Error(tr('err.cancelled'));
     setPin(pin.trim());
     res = await run();
     if (res.status === 401) {
       setPin('');
-      throw new Error('PIN incorrecto');
+      throw new Error(tr('err.pin'));
     }
   }
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Error del servidor');
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.code ? tr(`err.${body.code}`) : body.error || tr('err.server'));
+  }
   return res;
 }
 
 export async function fetchFormulas() {
   const res = await call('formulas', { cache: 'no-store' });
-  if (!res.ok) throw new Error('No se pudo leer la lista de fórmulas');
+  if (!res.ok) throw new Error(tr('err.readList'));
   return res.json();
 }
 
@@ -82,10 +86,10 @@ export function shrinkImage(file, maxW = 600) {
       canvas.width = Math.round(img.width * k);
       canvas.height = Math.round(img.height * k);
       canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Imagen no válida'))), 'image/png');
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error(tr('err.image')))), 'image/png');
       URL.revokeObjectURL(img.src);
     };
-    img.onerror = () => reject(new Error('Imagen no válida'));
+    img.onerror = () => reject(new Error(tr('err.image')));
     img.src = URL.createObjectURL(file);
   });
 }

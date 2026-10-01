@@ -12,7 +12,7 @@ const REDIS_TOKEN = () => process.env.KV_REST_API_TOKEN || process.env.UPSTASH_R
 async function redis(...cmd) {
   const url = REDIS_URL();
   const token = REDIS_TOKEN();
-  if (!url || !token) throw new Error('Falta conectar la base de datos (Upstash Redis) al proyecto');
+  if (!url || !token) throw Object.assign(new Error('Database (Upstash Redis) is not connected to the project'), { code: 'no_db' });
   const res = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify(cmd) });
   const body = await res.json();
   if (!res.ok || body.error) throw new Error(body.error || 'Error de la base de datos');
@@ -30,12 +30,13 @@ const MAX_LOGO = 1.5 * 1024 * 1024; // caracteres del dataURL
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   const send = (status, data) => res.status(status).json(data);
+  const fail = (status, code, error) => send(status, { code, error });
 
   try {
     const route = req.query.route;
     const pin = process.env.EDIT_PIN;
     const pinOk = !pin || req.headers['x-edit-pin'] === pin;
-    const denied = () => send(401, { error: 'PIN incorrecto o requerido' });
+    const denied = () => fail(401, 'pin', 'Wrong or missing PIN');
 
     if (route === 'auth') {
       if (req.method === 'POST') return pinOk ? send(200, { ok: true }) : denied();
@@ -45,7 +46,7 @@ export default async function handler(req, res) {
     if (route === 'formulas') {
       const list = JSON.parse((await redis('GET', 'lm:formulas')) || '[]');
       if (req.method === 'GET') return send(200, list);
-      if (req.method !== 'POST') return send(405, { error: 'Método no permitido' });
+      if (req.method !== 'POST') return fail(405, 'method', 'Method not allowed');
 
       const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
       const items = (Array.isArray(body.items) ? body.items : []).map(clean).filter((f) => f.formula);
@@ -69,7 +70,7 @@ export default async function handler(req, res) {
           items.forEach((f) => map.set(key(f), f));
           break;
         default:
-          return send(400, { error: 'Operación desconocida' });
+          return fail(400, 'bad_op', 'Unknown operation');
       }
       const next = [...map.values()];
       await redis('SET', 'lm:formulas', JSON.stringify(next));
@@ -79,7 +80,7 @@ export default async function handler(req, res) {
     if (route === 'logo') {
       if (req.method === 'GET') {
         const dataUrl = await redis('GET', 'lm:logo');
-        return dataUrl ? send(200, { dataUrl }) : send(404, { error: 'No hay logo' });
+        return dataUrl ? send(200, { dataUrl }) : fail(404, 'not_found', 'No logo');
       }
       if (!pinOk) return denied();
       if (req.method === 'DELETE') {
@@ -89,15 +90,15 @@ export default async function handler(req, res) {
       if (req.method === 'PUT') {
         const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
         const dataUrl = String(body.dataUrl || '');
-        if (!/^data:image\/(png|jpeg|webp|gif);base64,/.test(dataUrl)) return send(400, { error: 'El logo debe ser una imagen' });
-        if (dataUrl.length > MAX_LOGO) return send(413, { error: 'Imagen demasiado grande' });
+        if (!/^data:image\/(png|jpeg|webp|gif);base64,/.test(dataUrl)) return fail(400, 'not_image', 'The logo must be an image');
+        if (dataUrl.length > MAX_LOGO) return fail(413, 'too_big', 'Image too large');
         await redis('SET', 'lm:logo', dataUrl);
         return send(200, { ok: true });
       }
     }
 
-    return send(404, { error: 'No encontrado' });
+    return fail(404, 'not_found', 'Not found');
   } catch (err) {
-    return send(500, { error: err.message || 'Error del servidor' });
+    return send(500, { code: err.code, error: err.message || 'Server error' });
   }
 }
