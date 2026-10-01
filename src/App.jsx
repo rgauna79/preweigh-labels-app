@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { BookmarkPlus, Eraser, ImagePlus, ListChecks, Printer } from 'lucide-react';
+import { AlertTriangle, BookmarkPlus, CheckCircle2, Info, X, Eraser, ImagePlus, ListChecks, Printer } from 'lucide-react';
 import { useLang } from './i18n.js';
 import FormulaManager from './FormulaManager.jsx';
 import { deleteLogo, fetchFormulas, fetchLogo, shrinkImage, uploadLogo, writeFormulas } from './api.js';
@@ -51,7 +51,8 @@ export default function App() {
   const [formulas, setFormulas] = useState([]);
   const [showFormulas, setShowFormulas] = useState(false);
   const [logo, setLogo] = useState(null);
-  const [status, setStatus] = useState('');
+  const [statusObj, setStatusObj] = useState(null); // { text, type: 'info' | 'success' | 'error' }
+  const setStatus = (text, type = 'info') => setStatusObj(text ? { text, type } : null);
   const [serverError, setServerError] = useState('');
   const logoInput = useRef(null);
 
@@ -124,9 +125,9 @@ export default function App() {
   const saveFormula = async () => {
     try {
       setFormulas(await writeFormulas(saved ? 'upsert' : 'add', [entryFromForm()]));
-      setStatus(saved ? t('status.updated', { f: trimmedFormula }) : t('status.saved', { f: trimmedFormula }));
+      setStatus(saved ? t('status.updated', { f: trimmedFormula }) : t('status.saved', { f: trimmedFormula }), 'success');
     } catch (err) {
-      setStatus(err.message);
+      setStatus(err.message, 'error');
     }
   };
 
@@ -142,13 +143,13 @@ export default function App() {
     try {
       await uploadLogo(await shrinkImage(file));
       setLogo(await fetchLogo());
-      setStatus(t('status.logoUpdated'));
+      setStatus(t('status.logoUpdated'), 'success');
     } catch (err) {
-      setStatus(err.message);
+      setStatus(err.message, 'error');
     }
   };
   const removeLogo = async () => {
-    try { await deleteLogo(); setLogo(null); setStatus(t('status.logoRemoved')); } catch (err) { setStatus(err.message); }
+    try { await deleteLogo(); setLogo(null); setStatus(t('status.logoRemoved'), 'success'); } catch (err) { setStatus(err.message, 'error'); }
   };
   const onLogo = (e) => {
     const file = e.target.files?.[0];
@@ -213,13 +214,29 @@ export default function App() {
                   {formulas.filter((f) => f.formula).map((f, i) => <option key={i} value={f.formula}>{f.name}</option>)}
                 </datalist>
                 {text('name', 'Name')}
-                {serverError && <p className="text-xs font-semibold text-rose-600">{serverError}</p>}
+                {serverError && (
+                  <div role="alert" className="lm-slide flex items-start gap-2 rounded-md border-l-4 border-rose-600 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-900">
+                    <AlertTriangle size={16} className="shrink-0 text-rose-600" /> <span className="break-words">{serverError}</span>
+                  </div>
+                )}
                 {canSaveFormula && (
                   <button onClick={saveFormula} className="flex items-center gap-1.5 text-xs font-bold text-violet-700 hover:underline justify-self-start">
                     <BookmarkPlus size={14} /> {saved ? t('updateName') : t('saveFormula')}
                   </button>
                 )}
-                {status && <p className="text-xs font-semibold text-amber-700">{status}</p>}
+                {statusObj && (
+                  <div role={statusObj.type === 'error' ? 'alert' : 'status'}
+                    className={`lm-slide flex items-start gap-2 rounded-md border-l-4 px-3 py-2 text-xs font-bold ${
+                      statusObj.type === 'error' ? 'bg-rose-50 border-rose-600 text-rose-900'
+                        : statusObj.type === 'success' ? 'bg-emerald-50 border-emerald-600 text-emerald-900'
+                        : 'bg-amber-50 border-amber-500 text-amber-900'}`}>
+                    {statusObj.type === 'error' ? <AlertTriangle size={16} className="shrink-0 text-rose-600" />
+                      : statusObj.type === 'success' ? <CheckCircle2 size={16} className="shrink-0 text-emerald-600" />
+                      : <Info size={16} className="shrink-0 text-amber-600" />}
+                    <span className="flex-1 break-words">{statusObj.text}</span>
+                    <button onClick={() => setStatus('')} aria-label="×" className="shrink-0 opacity-60 hover:opacity-100"><X size={14} /></button>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   {text('batch', 'Batch#')}
                   {text('batches', t('ph.batches'))}

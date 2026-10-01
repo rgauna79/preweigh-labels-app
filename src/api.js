@@ -10,11 +10,14 @@ const setPin = (v) => {
 };
 
 async function call(path, init = {}) {
-  const res = await fetch(`/api/${path}`, {
-    ...init,
-    headers: { ...(init.headers || {}), 'x-edit-pin': getPin() },
-  });
-  return res;
+  try {
+    return await fetch(`/api/${path}`, {
+      ...init,
+      headers: { ...(init.headers || {}), 'x-edit-pin': getPin() },
+    });
+  } catch {
+    throw new Error(tr('err.network')); // sin internet o servidor caído
+  }
 }
 
 /** Ejecuta una operación protegida; si el servidor pide PIN, lo pregunta y reintenta una vez. */
