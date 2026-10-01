@@ -5,7 +5,7 @@ export const LABEL_W = 1008;
 export const LABEL_H = 768;
 
 /** Texto de una sola línea que reduce su tamaño de fuente hasta caber en el ancho disponible. */
-export function FitText({ text, max, min = 14, className = '', style }) {
+export function FitText({ text, max, min = 14, className = '', style, lock = false }) {
   const boxRef = useRef(null);
   const innerRef = useRef(null);
 
@@ -25,10 +25,20 @@ export function FitText({ text, max, min = 14, className = '', style }) {
     document.fonts?.ready.then(fit);
   }, [text, max, min]);
 
+  // lock: alto fijo según el tamaño máximo, para que una fila no se encoja cuando su texto se reduce.
+  const lockStyle = lock
+    ? {
+        height: Math.ceil(max * 1.25),
+        display: 'flex',
+        alignItems: 'flex-end',
+        justifyContent: /text-center/.test(className) ? 'center' : 'flex-start',
+      }
+    : null;
+
   return (
-    <div ref={boxRef} className={`overflow-hidden ${/(^|\s)w-/.test(className) ? '' : 'w-full'} ${className}`} style={style}>
-      <span ref={innerRef} className="inline-block whitespace-nowrap" style={{ fontSize: max }}>
-        {text || ' '}
+    <div ref={boxRef} className={`overflow-hidden ${/(^|\s)w-/.test(className) ? '' : 'w-full'} ${className}`} style={{ ...lockStyle, ...style }}>
+      <span ref={innerRef} className="inline-block whitespace-nowrap" style={{ fontSize: max, lineHeight: 1.2 }}>
+        {text || '\u00A0'}
       </span>
     </div>
   );
@@ -56,7 +66,7 @@ function Field({ label, value }) {
   return (
     <>
       <span className={LABEL}>{label}</span>
-      <FitText text={value} max={48} className={`col-span-3 ${LINE}`} />
+      <FitText text={value} max={52} lock className={`col-span-3 ${LINE}`} />
     </>
   );
 }
@@ -78,7 +88,7 @@ function DateRow({ data, logo, onLogoClick }) {
   return (
     <>
       <span className={LABEL}>Date Weighed:</span>
-      <FitText text={data.date} max={50} className={LINE} />
+      <FitText text={data.date} max={54} lock className={LINE} />
       <span />
       <div onClick={onLogoClick} className="cursor-pointer pl-6" title="Logo">
         <Logo logo={logo} />
@@ -101,9 +111,9 @@ function PalletRow({ data }) {
   return (
     <>
       <span className={LABEL}>Number Pallet</span>
-      <FitText text={data.palletNum} max={48} className={LINE} />
+      <FitText text={data.palletNum} max={52} lock className={LINE} />
       <span className="label-text text-center">of</span>
-      <FitText text={data.palletTotal} max={48} className={LINE} />
+      <FitText text={data.palletTotal} max={52} lock className={LINE} />
     </>
   );
 }
@@ -122,8 +132,8 @@ export const toItems = (text) => String(text ?? '').split('\n').map((t) => t.tri
 function ItemList({ items, area, maxFont, min = 14, weight = 'font-medium' }) {
   const cols = items.length <= 6 ? 1 : items.length <= 14 ? 2 : 3;
   const rows = Math.ceil(items.length / cols);
-  const rowH = Math.min(maxFont * 1.3, area / Math.max(rows, 1));
-  const font = Math.max(min, Math.floor(rowH / 1.3));
+  const rowH = Math.min(maxFont * 1.25, area / Math.max(rows, 1));
+  const font = Math.max(min, Math.floor(rowH / 1.25));
   return (
     <div className="w-full grid gap-x-8" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gridAutoFlow: 'column', gridTemplateRows: `repeat(${rows}, ${rowH}px)` }}>
       {items.map((t, i) => (
@@ -173,8 +183,8 @@ export function MissingTag({ data, logo, onLogoClick }) {
         {!many &&
           items.map((t, i) => (
             <React.Fragment key={i}>
-              <span className="text-[22px] font-medium tracking-wide pr-3.5 pb-1 whitespace-nowrap">MISSING INGREDIENT</span>
-              <FitText text={t} max={32} className="col-span-3 border-b-[3px] border-black font-medium pb-0.5" />
+              <span className="text-[24px] font-medium tracking-wide pr-3.5 pb-1 whitespace-nowrap">MISSING INGREDIENT</span>
+              <FitText text={t} max={34} lock className="col-span-3 border-b-[3px] border-black font-medium pb-0.5" />
             </React.Fragment>
           ))}
         {many && (
@@ -190,11 +200,11 @@ export function MissingTag({ data, logo, onLogoClick }) {
 function MissingMany({ items }) {
   const cols = items.length <= 16 ? 2 : 3;
   const rows = Math.ceil(items.length / cols);
-  const rowH = Math.min(44, Math.floor(200 / rows));
-  const font = Math.max(12, Math.floor(rowH * 0.66));
+  const rowH = Math.min(46, Math.floor(200 / rows));
+  const font = Math.max(12, Math.floor(rowH * 0.7));
   return (
     <div>
-      <div className="text-[22px] font-bold tracking-wide mb-1">MISSING INGREDIENTS</div>
+      <div className="text-[24px] font-bold tracking-wide mb-1">MISSING INGREDIENTS</div>
       <div className="grid gap-x-8" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gridAutoFlow: 'column', gridTemplateRows: `repeat(${rows}, ${rowH}px)` }}>
         {items.map((t, i) => (
           <FitText key={i} text={t} max={font} min={11} className="border-b-2 border-black font-medium" />
@@ -213,11 +223,11 @@ export function ReferPage1({ data, logo, onLogoClick }) {
       <div className="text-[84px] font-black leading-none">{data.ile || 'ILE'}</div>
       <div className="text-[92px] font-black leading-none mt-3">KEEP IN REFER:</div>
       <div className="flex-1 w-full flex items-center pt-4 pb-4">
-        <ItemList items={items} area={200} maxFont={54} min={16} />
+        <ItemList items={items} area={215} maxFont={60} min={16} />
       </div>
       <div className="w-full">
-        <div className="text-[56px] font-black leading-tight">BATCH:</div>
-        <FitText text={batchLine} max={54} min={22} className="font-black text-center" />
+        <div className="text-[62px] font-black leading-tight">BATCH:</div>
+        <FitText text={batchLine} max={60} min={22} className="font-black text-center" />
         <FitText text={formatId(data.identifier)} max={48} className="font-black text-center" />
       </div>
     </div>
@@ -234,7 +244,7 @@ export function ReferPage2({ data, logo, onLogoClick }) {
       <div className="font-black leading-none" style={{ fontSize: title }}>ITEMS IN</div>
       <div className="font-black leading-none" style={{ fontSize: title, marginTop: compact ? 14 : 36 }}>REFER {data.ile || 'ILE'}</div>
       <div className="flex-1 w-full flex items-center pt-4">
-        <ItemList items={items} area={compact ? 380 : 280} maxFont={62} min={16} />
+        <ItemList items={items} area={compact ? 380 : 280} maxFont={68} min={16} />
       </div>
     </div>
   );
