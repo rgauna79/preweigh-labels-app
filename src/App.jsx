@@ -2,12 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BookmarkPlus, Eraser, ImagePlus, ListChecks, Printer, Tags } from 'lucide-react';
 import FormulaManager from './FormulaManager.jsx';
 import { deleteLogo, fetchFormulas, fetchLogo, shrinkImage, uploadLogo, writeFormulas } from './api.js';
-import { LABEL_H, LABEL_W, buildSheets } from './Labels.jsx';
+import { LABEL_H, LABEL_W, buildSheets, stripId, toItems } from './Labels.jsx';
 
 const EMPTY = {
   date: '', formula: '', name: '', batch: '', po: '', batches: '', ile: 'ILE', identifier: '',
-  missing1: '', missing2: '', missing3: '', missing4: '',
-  refer1: '', refer2: '', refer3: '', refer4: '',
+  missing: '', refer: '',
 };
 
 const todayStr = () => {
@@ -157,8 +156,8 @@ export default function App() {
     formula: 'Formula', name: 'Name', batch: 'Batch#', po: 'P.O.#', batches: 'Batches', identifier: 'ID',
   };
   const emptyFields = Object.entries(required).filter(([k]) => !norm(data[k])).map(([, l]) => l);
-  if (job.withMissing && ![1, 2, 3, 4].some((n) => norm(data[`missing${n}`]))) emptyFields.push('Ingredientes faltantes');
-  if (job.withRefer && ![1, 2, 3, 4].some((n) => norm(data[`refer${n}`]))) emptyFields.push('Ingredientes refrigerados');
+  if (job.withMissing && !toItems(data.missing).length) emptyFields.push('Ingredientes faltantes');
+  if (job.withRefer && !toItems(data.refer).length) emptyFields.push('Ingredientes refrigerados');
 
   const text = (name, placeholder, extra = '') => (
     <input key={name} name={name} value={data[name]} onChange={onChange} placeholder={placeholder} className={`${inputCls} ${extra}`} />
@@ -205,7 +204,10 @@ export default function App() {
                 {text('po', 'P.O.#')}
                 <div className="grid grid-cols-2 gap-2">
                   {text('date', 'Fecha MM/DD/YY')}
-                  {text('identifier', 'ID-XXXXXX')}
+                  <div className="flex items-center border border-slate-300 rounded-md bg-white focus-within:ring-2 focus-within:ring-violet-500 focus-within:border-violet-500">
+                    <span className="pl-3 text-sm font-extrabold text-slate-400 select-none">ID-</span>
+                    <input name="identifier" value={stripId(data.identifier)} onChange={(e) => set('identifier', stripId(e.target.value))} placeholder="G9FB71" className="w-full px-1.5 py-2 text-sm font-semibold text-slate-900 bg-transparent outline-none" />
+                  </div>
                 </div>
                 {text('ile', 'ILE')}
               </div>
@@ -234,7 +236,8 @@ export default function App() {
               </label>
               {job.withMissing && (
                 <div className="grid gap-2 p-3 rounded-lg bg-rose-50 border border-rose-200">
-                  {[1, 2, 3, 4].map((n) => text(`missing${n}`, `Missing ${n}`))}
+                  <textarea name="missing" value={data.missing} onChange={onChange} rows={5} placeholder={'Uno por línea:\n701360 Pure Vanilla Ext 2'} className={`${inputCls} resize-y`} />
+                  <p className="text-xs text-rose-700">{toItems(data.missing).length} ingredientes. Solo se imprimen las líneas que escribas.</p>
                 </div>
               )}
             </Section>
@@ -246,7 +249,8 @@ export default function App() {
               </label>
               {job.withRefer && (
                 <div className="grid gap-2 p-3 rounded-lg bg-sky-50 border border-sky-200">
-                  {[1, 2, 3, 4].map((n) => text(`refer${n}`, `Refer ${n}`))}
+                  <textarea name="refer" value={data.refer} onChange={onChange} rows={5} placeholder={'Uno por línea:\n702757 Chiber Mushroom'} className={`${inputCls} resize-y`} />
+                  <p className="text-xs text-sky-700">{toItems(data.refer).length} ingredientes. Solo se imprimen las líneas que escribas.</p>
                 </div>
               )}
             </Section>
