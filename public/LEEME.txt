@@ -1,6 +1,6 @@
-Archivos compartidos de la app (todos los usuarios los ven al abrirla):
+Archivos opcionales que viajan con la app:
 
-  formulas.csv  -> columnas: Formula, Name, ILE (ILE es opcional)
-  logo.png      -> logo que sale en el tag Preweigh (agrégalo aquí)
-
-Para actualizarlos: reemplaza el archivo, haz commit y push. El host vuelve a desplegar solo.
+  formulas.csv  -> lista INICIAL de fórmulas (columnas: Formula, Name, ILE opcional).
+                   Solo se usa en navegadores que aún no tienen su propia lista.
+                   Las fórmulas se agregan/editan/borran desde la app ("Administrar fórmulas").
+  logo.png      -> logo que sale en el tag Preweigh (agrégalo aquí).

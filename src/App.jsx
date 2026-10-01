@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import Papa from 'papaparse';
-import { Download, Eraser, FileSpreadsheet, ImagePlus, Printer, Tags } from 'lucide-react';
+import { BookmarkPlus, Eraser, ImagePlus, ListChecks, Printer, Tags } from 'lucide-react';
+import FormulaManager from './FormulaManager.jsx';
+import { parseFormulasCsv } from './formulas.js';
 import { LABEL_H, LABEL_W, buildSheets } from './Labels.jsx';
 
 const EMPTY = {
@@ -47,6 +48,7 @@ export default function App() {
   const [data, setData] = useState(() => ({ ...EMPTY, ...load('lm.data', {}), date: todayStr() }));
   const [job, setJob] = useState(() => ({ pallets: 1, withMissing: false, withRefer: false, ...load('lm.job', {}) }));
   const [formulas, setFormulas] = useState(() => load('lm.formulas', []));
+  const [showFormulas, setShowFormulas] = useState(false);
   const [logo, setLogo] = useState(() => load('lm.logo', null));
   const [status, setStatus] = useState('');
   const logoInput = useRef(null);
@@ -83,49 +85,45 @@ export default function App() {
       ...(match ? { name: match.name || d.name, ile: match.ile || 'ILE' } : {}),
     }));
     setStatus(
-      formulas.length && norm(value) && !match ? `Fórmula "${norm(value)}" no está en la base de datos.` : ''
+      formulas.length && norm(value) && !match ? `Fórmula "${norm(value)}" no está en la lista: escribe el nombre y guárdala.` : ''
     );
   };
 
-  const parseCsv = (input, onDone) =>
-    Papa.parse(input, {
-      header: true,
-      skipEmptyLines: true,
-      transformHeader: (h) => h.replace(/^\uFEFF/, '').trim().toLowerCase(),
-      complete: ({ data: rows }) =>
-        onDone(
-          rows
-            .map((r) => ({ formula: norm(r.formula), name: norm(r.name), ile: norm(r.ile) }))
-            .filter((r) => r.formula)
-        ),
-    });
-
-  const onCsv = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    parseCsv(file, (list) => {
-      setFormulas(list);
-      save('lm.formulas', list);
-      setStatus(
-        list.length
-          ? `${list.length} fórmulas cargadas (solo en este navegador).`
-          : 'No se encontraron fórmulas. El CSV necesita las columnas: Formula, Name (y opcional ILE).'
-      );
-    });
-    e.target.value = '';
+  // Cualquier cambio hecho por el usuario se guarda en este navegador.
+  const updateFormulas = (list) => {
+    setFormulas(list);
+    save('lm.formulas', list);
   };
 
-  // Archivos compartidos: public/formulas.csv y public/logo.png viajan con la app.
-  // Si existen, tienen prioridad sobre lo que cada navegador haya guardado.
-  useEffect(() => {
-    const base = import.meta.env.BASE_URL;
-    fetch(`${base}formulas.csv`, { cache: 'no-cache' })
+  const fetchSharedFormulas = (onDone) =>
+    fetch(`${import.meta.env.BASE_URL}formulas.csv`, { cache: 'no-cache' })
       .then((r) => (r.ok ? r.text() : Promise.reject()))
       .then((txt) => {
-        if (txt.trimStart().startsWith('<')) return; // el servidor devolvió una página HTML, no un CSV
-        parseCsv(txt, (list) => list.length && setFormulas(list));
+        if (txt.trimStart().startsWith('<')) return; // el servidor devolvió HTML, no un CSV
+        parseFormulasCsv(txt, (list) => list.length && onDone(list));
       })
       .catch(() => {});
+
+  const resetFormulas = () => {
+    try { localStorage.removeItem('lm.formulas'); } catch { /* sin almacenamiento */ }
+    setFormulas([]);
+    fetchSharedFormulas(setFormulas);
+  };
+
+  const trimmedFormula = norm(data.formula);
+  const saved = formulas.find((f) => f.formula.toLowerCase() === trimmedFormula.toLowerCase());
+  const canSaveFormula = trimmedFormula && norm(data.name) && (!saved || saved.name !== norm(data.name));
+  const saveFormula = () => {
+    const entry = { formula: trimmedFormula, name: norm(data.name), ile: saved?.ile || '' };
+    updateFormulas(saved ? formulas.map((f) => (f === saved ? entry : f)) : [entry, ...formulas]);
+    setStatus(saved ? `Nombre de ${trimmedFormula} actualizado.` : `Fórmula ${trimmedFormula} guardada en la lista.`);
+  };
+
+  // Archivos compartidos: public/formulas.csv (lista inicial, solo si el usuario no tiene la suya)
+  // y public/logo.png (si existe, tiene prioridad sobre el logo guardado en el navegador).
+  useEffect(() => {
+    const base = import.meta.env.BASE_URL;
+    if (!load('lm.formulas', []).length) fetchSharedFormulas(setFormulas);
     fetch(`${base}logo.png`, { cache: 'no-cache' })
       .then((r) => (r.ok && r.headers.get('content-type')?.startsWith('image/') ? r.blob() : Promise.reject()))
       .then((blob) => {
@@ -159,14 +157,6 @@ export default function App() {
   if (job.withMissing && ![1, 2, 3, 4].some((n) => norm(data[`missing${n}`]))) emptyFields.push('Ingredientes faltantes');
   if (job.withRefer && ![1, 2, 3, 4].some((n) => norm(data[`refer${n}`]))) emptyFields.push('Ingredientes refrigerados');
 
-  const sample = 'Formula,Name,ILE\n300909,CYBK Women\'s Hormone,ILE\n300888,ANCN Tropical Collagen Gel,ILE\n';
-  const downloadSample = () => {
-    const url = URL.createObjectURL(new Blob([sample], { type: 'text/csv' }));
-    const a = Object.assign(document.createElement('a'), { href: url, download: 'formulas-ejemplo.csv' });
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const text = (name, placeholder, extra = '') => (
     <input key={name} name={name} value={data[name]} onChange={onChange} placeholder={placeholder} className={`${inputCls} ${extra}`} />
   );
@@ -195,9 +185,15 @@ export default function App() {
                   onChange={(e) => applyFormula(e.target.value)} placeholder="Formula (ej. 300909)" className={inputCls}
                 />
                 <datalist id="formula-list">
-                  {formulas.map((f) => <option key={f.formula} value={f.formula}>{f.name}</option>)}
+                  {formulas.filter((f) => f.formula).map((f, i) => <option key={i} value={f.formula}>{f.name}</option>)}
                 </datalist>
                 {text('name', 'Name')}
+                {canSaveFormula && (
+                  <button onClick={saveFormula} className="flex items-center gap-1.5 text-xs font-bold text-violet-700 hover:underline justify-self-start">
+                    <BookmarkPlus size={14} /> {saved ? 'Actualizar nombre en la lista' : 'Guardar fórmula en la lista'}
+                  </button>
+                )}
+                {status && <p className="text-xs font-semibold text-amber-700">{status}</p>}
                 <div className="grid grid-cols-2 gap-2">
                   {text('batch', 'Batch#')}
                   {text('batches', 'Batches (ej. 3/19)')}
@@ -251,16 +247,12 @@ export default function App() {
               )}
             </Section>
 
-            <Section title="Base de datos de fórmulas (CSV)">
-              <label className="flex items-center gap-2 px-3 py-2.5 rounded-md border border-dashed border-slate-300 hover:border-violet-400 hover:bg-violet-50 cursor-pointer text-sm font-semibold text-slate-600">
-                <FileSpreadsheet size={18} />
-                <span className="flex-1">{formulas.length ? `${formulas.length} fórmulas cargadas` : 'Cargar archivo CSV'}</span>
-                <input type="file" accept=".csv,text/csv" onChange={onCsv} className="hidden" />
-              </label>
-              <button onClick={downloadSample} className="mt-1.5 flex items-center gap-1 text-xs font-semibold text-violet-600 hover:underline">
-                <Download size={12} /> Descargar CSV de ejemplo
+            <Section title="Fórmulas">
+              <button onClick={() => setShowFormulas(true)} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-md border border-slate-300 hover:border-violet-400 hover:bg-violet-50 text-sm font-semibold text-slate-700">
+                <ListChecks size={18} />
+                <span className="flex-1 text-left">Administrar fórmulas</span>
+                <span className="text-xs text-slate-500">{formulas.length}</span>
               </button>
-              {status && <p className="mt-1.5 text-xs font-semibold text-amber-700">{status}</p>}
             </Section>
 
             <Section title="Logo">
@@ -302,6 +294,10 @@ export default function App() {
           ))}
         </main>
       </div>
+
+      {showFormulas && (
+        <FormulaManager formulas={formulas} onChange={updateFormulas} onReset={resetFormulas} onClose={() => setShowFormulas(false)} />
+      )}
 
       {/* SALIDA DE IMPRESIÓN: una hoja Letter horizontal por etiqueta */}
       <div className="print-root">
