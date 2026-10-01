@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { BookmarkPlus, Eraser, ImagePlus, ListChecks, Printer, Tags } from 'lucide-react';
+import { BookmarkPlus, Eraser, ImagePlus, ListChecks, Printer } from 'lucide-react';
 import { useLang } from './i18n.js';
 import FormulaManager from './FormulaManager.jsx';
 import { deleteLogo, fetchFormulas, fetchLogo, shrinkImage, uploadLogo, writeFormulas } from './api.js';
@@ -183,10 +183,10 @@ export default function App() {
       <div className="app-root flex h-screen bg-slate-100 font-sans text-slate-900">
         {/* PANEL DE DATOS */}
         <aside className="w-[380px] shrink-0 bg-white border-r border-slate-200 flex flex-col">
-          <header className="px-5 py-4 bg-violet-600 text-white flex items-center gap-3">
-            <Tags size={26} />
+          <header className="px-4 py-4 bg-violet-600 text-white flex items-center gap-2.5">
+            <img src="/favicon.svg" alt="" className="w-8 h-8 shrink-0 rounded-lg ring-2 ring-white/70" />
             <div className="flex-1">
-              <h1 className="text-lg font-extrabold leading-tight">Label Master</h1>
+              <h1 className="text-[17px] font-extrabold leading-tight whitespace-nowrap">Label Master</h1>
               <p className="text-xs text-violet-200">{t('subtitle')}</p>
             </div>
             <div className="flex items-center rounded-md bg-white/15 p-0.5 text-[11px] font-extrabold" role="group" aria-label={t('lang')}>
