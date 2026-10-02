@@ -124,6 +124,17 @@ function PalletRow({ data }) {
 export const stripId = (v) => String(v ?? '').trim().replace(/^ID[-\s]*/i, '').toUpperCase();
 export const formatId = (v) => (stripId(v) ? `ID-${stripId(v)}` : '');
 
+/**
+ * Texto de "Batches": automático "3/12" (batch + total) o un texto manual (p. ej. "Pilot").
+ * Así el número de batch se escribe una sola vez.
+ */
+export const batchesText = (d) => {
+  if (d.batchesCustom) return String(d.batches ?? '').trim();
+  const b = String(d.batch ?? '').trim();
+  const total = String(d.batchTotal ?? '').trim();
+  return b && total ? `${b}/${total}` : '';
+};
+
 /** Lista de ingredientes (uno por línea de texto) sin líneas vacías. */
 export const toItems = (text) => String(text ?? '').split('\n').map((t) => t.trim()).filter(Boolean);
 
@@ -260,7 +271,8 @@ export function ReferPage2({ data, logo, onLogoClick }) {
  *  - si hay refrigerados: hoja "KEEP IN REFER" (va en el pallet de refrigerados)
  *    y hoja "ITEMS IN REFER" (se anexa al batch record)
  */
-export function buildSheets(data, { pallets, withMissing, withRefer }) {
+export function buildSheets(rawData, { pallets, withMissing, withRefer }) {
+  const data = { ...rawData, batches: batchesText(rawData) };
   const sheets = [];
   const n = Math.max(1, pallets);
   for (let i = 1; i <= n; i++) {

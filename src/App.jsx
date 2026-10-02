@@ -3,10 +3,10 @@ import { AlertTriangle, BookmarkPlus, CheckCircle2, Info, X, Eraser, ImagePlus, 
 import { useLang } from './i18n.js';
 import FormulaManager from './FormulaManager.jsx';
 import { deleteLogo, fetchFormulas, fetchLogo, shrinkImage, uploadLogo, writeFormulas } from './api.js';
-import { LABEL_H, LABEL_W, buildSheets, stripId, toItems } from './Labels.jsx';
+import { LABEL_H, LABEL_W, batchesText, buildSheets, stripId, toItems } from './Labels.jsx';
 
 const EMPTY = {
-  date: '', formula: '', name: '', batch: '', po: '', batches: '', ile: 'ILE', identifier: '',
+  date: '', formula: '', name: '', batch: '', batchTotal: '', batchesCustom: false, po: '', batches: '', ile: 'ILE', identifier: '',
   missing: '', refer: '',
 };
 
@@ -165,13 +165,18 @@ export default function App() {
     window.print();
   };
 
+  // Pasar a texto manual parte del valor automático ("3/12") para poder editarlo; volver a automático lo descarta.
+  const toggleCustomBatches = () =>
+    setData((d) => (d.batchesCustom ? { ...d, batchesCustom: false } : { ...d, batchesCustom: true, batches: batchesText(d) }));
+
   const newBatch = () =>
     setData((d) => ({ ...EMPTY, date: dateEdited.current ? d.date : todayStr(), ile: d.ile }));
 
   const required = {
     formula: 'Formula', name: 'Name', batch: 'Batch#', po: 'P.O.#', batches: 'Batches', identifier: 'ID',
   };
-  const emptyFields = Object.entries(required).filter(([k]) => !norm(data[k])).map(([, l]) => l);
+  const effective = { ...data, batches: batchesText(data) };
+  const emptyFields = Object.entries(required).filter(([k]) => !norm(effective[k])).map(([, l]) => l);
   if (job.withMissing && !toItems(data.missing).length) emptyFields.push(t('empty.missing'));
   if (job.withRefer && !toItems(data.refer).length) emptyFields.push(t('empty.refer'));
 
@@ -237,9 +242,22 @@ export default function App() {
                     <button onClick={() => setStatus('')} aria-label="×" className="shrink-0 opacity-60 hover:opacity-100"><X size={14} /></button>
                   </div>
                 )}
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                   {text('batch', 'Batch#')}
-                  {text('batches', t('ph.batches'))}
+                  <span className="text-sm font-extrabold text-slate-400">/</span>
+                  {text('batchTotal', t('ph.batchTotal'), data.batchesCustom ? 'opacity-50' : '')}
+                </div>
+                <div className="-mt-1 flex items-center gap-2 text-xs">
+                  {data.batchesCustom ? (
+                    <input name="batches" value={data.batches} onChange={onChange} placeholder={t('batches.customPh')} className={`${inputCls} !py-1.5`} />
+                  ) : (
+                    <p className="flex-1 font-semibold text-slate-500">
+                      Batches: <span className="font-extrabold text-slate-900">{batchesText(data) || '—'}</span>
+                    </p>
+                  )}
+                  <button onClick={toggleCustomBatches} className="shrink-0 font-bold text-violet-700 hover:underline">
+                    {data.batchesCustom ? t('batches.auto') : t('batches.custom')}
+                  </button>
                 </div>
                 {text('po', 'P.O.#')}
                 <div className="grid grid-cols-2 gap-2">
