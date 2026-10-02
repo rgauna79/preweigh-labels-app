@@ -1,23 +1,11 @@
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import React, { useLayoutEffect, useRef } from 'react';
 
 // Etiqueta: 10.5in x 8in (a 96 dpi). Se imprime centrada en hoja Letter horizontal.
 export const LABEL_W = 1008;
 export const LABEL_H = 768;
 
-/** Una coma o punto y coma suelto ("A-1 , B-2") se pega a la palabra anterior para no quedar al inicio de un renglón. */
-const glueCommas = (words) =>
-  words.reduce((out, w) => {
-    if (out.length && /^[,;]+$/.test(w)) out[out.length - 1] += ` ${w}`;
-    else out.push(w);
-    return out;
-  }, []);
-
-/**
- * Texto que reduce su tamaño hasta caber en el ancho disponible.
- * lines=2: si en una línea quedaría muy pequeño (menos del 86% del tamaño máximo),
- * pasa a dos líneas con letra más grande en vez de seguir encogiéndose.
- */
-export function FitText({ text, max, min = 14, className = '', style, lock = false, lines = 1 }) {
+/** Texto de una sola línea que reduce su tamaño de letra hasta caber en el ancho disponible. */
+export function FitText({ text, max, min = 14, className = '', style, lock = false }) {
   const boxRef = useRef(null);
   const innerRef = useRef(null);
 
@@ -26,38 +14,21 @@ export function FitText({ text, max, min = 14, className = '', style, lock = fal
     const inner = innerRef.current;
     if (!box || !inner) return;
     const fit = () => {
-      inner.style.whiteSpace = 'nowrap';
-      inner.style.display = 'inline-block';
-      inner.style.width = '';
       inner.style.fontSize = `${max}px`;
       const avail = box.clientWidth;
       const need = inner.scrollWidth;
-      if (!(avail > 0 && need > avail)) return;
-      const single = Math.floor((max * avail) / need) - 1;
-      if (lines < 2 || single >= max * 0.86) {
-        inner.style.fontSize = `${Math.max(min, single)}px`;
-        return;
+      if (avail > 0 && need > avail) {
+        inner.style.fontSize = `${Math.max(min, Math.floor((max * avail) / need) - 1)}px`;
       }
-      // Dos líneas: la letra más grande que quepa en 2 renglones sin cortar palabras
-      inner.style.whiteSpace = 'normal';
-      inner.style.display = 'block';
-      inner.style.width = '100%';
-      let f = Math.floor(max * 0.92);
-      for (; f > min; f -= 2) {
-        inner.style.fontSize = `${f}px`;
-        if (inner.scrollHeight <= f * 1.2 * 2 + 2 && inner.scrollWidth <= avail + 1) break;
-      }
-      inner.style.fontSize = `${f}px`;
     };
     fit();
     document.fonts?.ready.then(fit);
-  }, [text, max, min, lines]);
+  }, [text, max, min]);
 
   // lock: alto fijo según el tamaño máximo, para que una fila no se encoja cuando su texto se reduce.
-  // Con lines=2 es un alto mínimo: la fila crece solo si el texto necesita dos renglones.
   const lockStyle = lock
     ? {
-        [lines > 1 ? 'minHeight' : 'height']: Math.ceil(max * 1.25),
+        height: Math.ceil(max * 1.25),
         display: 'flex',
         alignItems: 'flex-end',
         justifyContent: /text-center/.test(className) ? 'center' : 'flex-start',
@@ -67,15 +38,7 @@ export function FitText({ text, max, min = 14, className = '', style, lock = fal
   return (
     <div ref={boxRef} className={`overflow-hidden ${/(^|\s)w-/.test(className) ? '' : 'w-full'} ${className}`} style={{ ...lockStyle, ...style }}>
       <span ref={innerRef} className="inline-block whitespace-nowrap" style={{ fontSize: max, lineHeight: 1.2 }}>
-        {/* con 2 líneas cada palabra va en un bloque que no se parte (así "26105439-1" nunca se corta en el guion) */}
-        {lines > 1 && text
-          ? glueCommas(text.split(' ')).map((w, i, arr) => (
-              <React.Fragment key={i}>
-                <span style={{ whiteSpace: 'nowrap' }}>{w}</span>
-                {i < arr.length - 1 ? ' ' : null}
-              </React.Fragment>
-            ))
-          : text || '\u00A0'}
+        {text || '\u00A0'}
       </span>
     </div>
   );
@@ -86,6 +49,8 @@ export function FitText({ text, max, min = 14, className = '', style, lock = fal
 // ("Date Weighed:", "Number Pallet"), así todas las líneas arrancan en el mismo punto.
 const LINE = 'border-b-[3px] border-black text-center font-bold pb-0.5';
 const LABEL = 'label-text pr-3.5';
+const FIELD_MAX = 60; // tamaño de los valores de las filas principales
+const DATE_MAX = 58;
 
 function TagGrid({ children }) {
   return (
@@ -99,11 +64,11 @@ function TagGrid({ children }) {
 }
 
 /** Una fila de la etiqueta: texto + línea que ocupa todo el ancho restante. */
-function Field({ label, value, wrap = false }) {
+function Field({ label, value, max = FIELD_MAX }) {
   return (
     <>
       <span className={LABEL}>{label}</span>
-      <FitText text={value} max={52} lock lines={wrap ? 2 : 1} min={wrap ? 26 : 14} className={`col-span-3 ${LINE}`} />
+      <FitText text={value} max={max} lock className={`col-span-3 ${LINE}`} />
     </>
   );
 }
@@ -125,8 +90,7 @@ function DateRow({ data, logo, onLogoClick }) {
   return (
     <>
       <span className={LABEL}>Date Weighed:</span>
-      <FitText text={data.date} max={54} lock className={LINE} />
-      <span />
+      <FitText text={data.date} max={DATE_MAX} lock className={`col-span-2 ${LINE}`} />
       <div onClick={onLogoClick} className="cursor-pointer pl-6" title="Logo">
         <Logo logo={logo} />
       </div>
@@ -144,13 +108,14 @@ function LogoCorner({ logo, onLogoClick }) {
   );
 }
 
+/** "Number Pallet … of …": fila deliberadamente más pequeña que las demás. */
 function PalletRow({ data }) {
   return (
     <>
-      <span className={LABEL}>Number Pallet</span>
-      <FitText text={data.palletNum} max={52} lock className={LINE} />
-      <span className="label-text text-center">of</span>
-      <FitText text={data.palletTotal} max={52} lock className={LINE} />
+      <span className="label-text-sm pr-3.5">Number Pallet</span>
+      <FitText text={data.palletNum} max={38} lock className={LINE} />
+      <span className="label-text-sm text-center">of</span>
+      <FitText text={data.palletTotal} max={38} lock className={LINE} />
     </>
   );
 }
@@ -186,9 +151,9 @@ export function PreweighTag({ data, logo, onLogoClick }) {
       <TagGrid>
         <DateRow data={data} logo={logo} onLogoClick={onLogoClick} />
         <Field label="Formula:" value={data.formula} />
-        <Field label="Name:" value={data.name} wrap />
+        <Field label="Name:" value={data.name} />
         <Field label="Batch#" value={data.batch} />
-        <Field label="P.O.#" value={data.po} wrap />
+        <Field label="P.O.#" value={data.po} />
         <Field label="Batches:" value={data.batches} />
         <PalletRow data={data} />
         <div className="col-span-4 grid grid-cols-2 gap-6 h-[96px]">
@@ -206,39 +171,29 @@ export function PreweighTag({ data, logo, onLogoClick }) {
 
 export function MissingTag({ data, logo, onLogoClick }) {
   const items = toItems(data.missing);
-  const many = items.length > 4;
-  // Los renglones dobles de Name / P.O. se usan solo si todo cabe en la hoja; si no, vuelven a una línea.
-  const rootRef = useRef(null);
-  // squeeze 0: todo normal · 1: lista de ingredientes más baja · 2: Name / P.O. vuelven a una línea
-  const [squeeze, setSqueeze] = useState(0);
-  const compact = squeeze >= 2;
-  useLayoutEffect(() => { setSqueeze(0); }, [data.name, data.po, data.missing]);
-  useLayoutEffect(() => {
-    const root = rootRef.current;
-    const grid = root?.firstElementChild;
-    if (!root || !grid || squeeze >= 2) return;
-    if (grid.offsetHeight > root.clientHeight - 72 + 1) setSqueeze((v) => v + 1);
-  });
+  const many = items.length > 6; // lo normal son hasta 6 faltantes: una línea con rótulo para cada uno
+  // Con 5-6 faltantes se achica un poco la letra de arriba para que todo quepa en la hoja
+  const fieldMax = items.length > 4 && !many ? 54 : FIELD_MAX;
+  const itemMax = items.length > 4 ? 30 : 34;
   return (
-    <div ref={rootRef} className="label-page flex flex-col">
+    <div className="label-page flex flex-col">
       <TagGrid>
         <DateRow data={data} logo={logo} onLogoClick={onLogoClick} />
-        <Field label="Name:" value={data.name} wrap={!compact} />
-        <Field label="Batch#:" value={data.batch} />
-        <Field label="P.O.#" value={data.po} wrap={!compact} />
-        <Field label="Batches:" value={data.batches} />
+        <Field label="Name:" value={data.name} max={fieldMax} />
+        <Field label="Batch#:" value={data.batch} max={fieldMax} />
+        <Field label="P.O.#" value={data.po} max={fieldMax} />
+        <Field label="Batches:" value={data.batches} max={fieldMax} />
         <PalletRow data={data} />
-        {/* Hasta 4: una línea por ingrediente con su rótulo. Más de 4: encabezado y lista en columnas. */}
         {!many &&
           items.map((t, i) => (
             <React.Fragment key={i}>
-              <span className="text-[24px] font-medium tracking-wide pr-3.5 pb-1 whitespace-nowrap">MISSING INGREDIENT</span>
-              <FitText text={t} max={34} lock className="col-span-3 border-b-[3px] border-black font-medium pb-0.5" />
+              <span className="text-[22px] font-medium tracking-wide pr-3.5 pb-1 whitespace-nowrap">MISSING INGREDIENT</span>
+              <FitText text={t} max={itemMax} lock className="col-span-3 border-b-[3px] border-black font-medium pb-0.5" />
             </React.Fragment>
           ))}
         {many && (
           <div className="col-span-4">
-            <MissingMany items={items} area={squeeze >= 1 ? 140 : 200} />
+            <MissingMany items={items} area={200} />
           </div>
         )}
       </TagGrid>

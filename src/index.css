@@ -17,7 +17,13 @@ body {
   position: relative;
 }
 .label-text {
-  font-size: 40px;
+  font-size: 46px;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.label-text-sm {
+  font-size: 30px;
   font-weight: 700;
   line-height: 1.1;
   white-space: nowrap;
