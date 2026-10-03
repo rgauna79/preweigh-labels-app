@@ -176,7 +176,14 @@ export default function App() {
 
   // Siguiente batch de la misma fórmula: batch +1; se conserva todo lo que se repite y se vacía lo que cambia.
   const idInput = useRef(null);
+  // Batch y total numéricos: el batch nunca puede ser mayor que el total (no existe el 4/2).
+  const isNum = (v) => /^\d+$/.test(norm(v));
+  const numericPair = !data.batchesCustom && isNum(data.batch) && isNum(data.batchTotal);
+  const batchOverTotal = numericPair && parseInt(data.batch, 10) > parseInt(data.batchTotal, 10);
+  const atLastBatch = numericPair && parseInt(data.batch, 10) >= parseInt(data.batchTotal, 10);
+
   const nextBatch = () => {
+    if (atLastBatch) return;
     setData((d) => {
       const n = /^\d+$/.test(norm(d.batch)) ? String(parseInt(d.batch, 10) + 1) : d.batch;
       return { ...d, batch: n, identifier: '', missing: '', refer: '' };
@@ -226,7 +233,8 @@ export default function App() {
 
           <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
             <Section title={t('sec.batch')} action={
-              <button onClick={nextBatch} title={t('nextBatchTitle')} className="flex items-center gap-1 rounded-md bg-violet-100 px-2 py-1 text-[11px] font-bold normal-case tracking-normal text-violet-700 hover:bg-violet-200">
+              <button onClick={nextBatch} disabled={atLastBatch} title={atLastBatch ? t('nextBatchLast') : t('nextBatchTitle')}
+                className="flex items-center gap-1 rounded-md bg-violet-100 px-2 py-1 text-[11px] font-bold normal-case tracking-normal text-violet-700 hover:bg-violet-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-violet-100">
                 <ChevronsRight size={13} /> {t('nextBatch')}
               </button>
             }>
@@ -263,9 +271,9 @@ export default function App() {
                   </div>
                 )}
                 <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                  {text('batch', 'Batch#')}
+                  {text('batch', 'Batch#', batchOverTotal ? '!border-rose-500 !bg-rose-50' : '')}
                   <span className="text-sm font-extrabold text-slate-400">/</span>
-                  {text('batchTotal', t('ph.batchTotal'), data.batchesCustom ? 'opacity-50' : '')}
+                  {text('batchTotal', t('ph.batchTotal'), `${data.batchesCustom ? 'opacity-50' : ''} ${batchOverTotal ? '!border-rose-500 !bg-rose-50' : ''}`)}
                 </div>
                 <div className="-mt-1 flex items-center gap-2 text-xs">
                   {data.batchesCustom ? (
@@ -363,6 +371,11 @@ export default function App() {
           </div>
 
           <footer className="p-5 border-t border-slate-200 bg-slate-50 flex flex-col gap-3">
+            {batchOverTotal && (
+              <p role="alert" className="flex items-start gap-1.5 rounded-md border-l-4 border-rose-600 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-900">
+                <AlertTriangle size={14} className="mt-px shrink-0 text-rose-600" /> {t('batches.over', { b: data.batch, t: data.batchTotal })}
+              </p>
+            )}
             {emptyFields.length > 0 && (
               <p className="text-xs font-semibold text-amber-700">{t('empty.prefix', { list: emptyFields.join(', ') })}</p>
             )}
