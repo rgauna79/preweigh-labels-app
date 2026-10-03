@@ -28,7 +28,7 @@ export function FitText({ text, max, min = 14, className = '', style, lock = fal
   // lock: alto fijo según el tamaño máximo, para que una fila no se encoja cuando su texto se reduce.
   const lockStyle = lock
     ? {
-        height: Math.ceil(max * 1.25),
+        height: Math.ceil(max * 1.2),
         display: 'flex',
         alignItems: 'flex-end',
         justifyContent: /text-center/.test(className) ? 'center' : 'flex-start',
@@ -46,11 +46,11 @@ export function FitText({ text, max, min = 14, className = '', style, lock = fal
 
 // Todas las filas de una etiqueta son celdas de UNA sola cuadrícula:
 // [etiqueta | línea A | "of" | línea B]. La 1ª columna mide lo que la palabra más larga
-// ("Date Weighed:", "Number Pallet"), así todas las líneas arrancan en el mismo punto.
+// ("Weighed", "Formula", "Batches"), así todas las líneas arrancan en el mismo punto.
 const LINE = 'border-b-[3px] border-black text-center font-bold pb-0.5';
 const LABEL = 'label-text pr-3.5';
-const FIELD_MAX = 60; // tamaño de los valores de las filas principales
-const DATE_MAX = 58;
+const FIELD_MAX = 66; // tamaño de los valores de las filas principales
+const DATE_MAX = 64;
 
 function TagGrid({ children }) {
   return (
@@ -89,7 +89,7 @@ function Logo({ logo }) {
 function DateRow({ data, logo, onLogoClick }) {
   return (
     <>
-      <span className={LABEL}>Date Weighed:</span>
+      <span className={`${LABEL} leading-[1.02]`}>Date<br />Weighed</span>
       <FitText text={data.date} max={DATE_MAX} lock className={`col-span-2 ${LINE}`} />
       <div onClick={onLogoClick} className="cursor-pointer pl-6" title="Logo">
         <Logo logo={logo} />
@@ -113,9 +113,9 @@ function PalletRow({ data }) {
   return (
     <>
       <span className="label-text-sm pr-3.5">Number Pallet</span>
-      <FitText text={data.palletNum} max={38} lock className={LINE} />
+      <FitText text={data.palletNum} max={36} lock className={LINE} />
       <span className="label-text-sm text-center">of</span>
-      <FitText text={data.palletTotal} max={38} lock className={LINE} />
+      <FitText text={data.palletTotal} max={36} lock className={LINE} />
     </>
   );
 }
@@ -161,13 +161,13 @@ export function PreweighTag({ data, logo, onLogoClick }) {
     <div className="label-page flex flex-col">
       <TagGrid>
         <DateRow data={data} logo={logo} onLogoClick={onLogoClick} />
-        <Field label="Formula:" value={data.formula} />
-        <Field label="Name:" value={data.name} />
+        <Field label="Formula" value={data.formula} />
+        <Field label="Name" value={data.name} />
         <Field label="Batch#" value={data.batch} />
         <Field label="P.O.#" value={data.po} />
-        <Field label="Batches:" value={data.batches} />
+        <Field label="Batches" value={data.batches} />
         <PalletRow data={data} />
-        <div className="col-span-4 grid grid-cols-2 gap-6 h-[96px]">
+        <div className="col-span-4 grid grid-cols-2 gap-6 h-[84px]">
           <div className="border-[3px] border-black flex items-center px-4">
             <FitText text={data.ile} max={56} className="text-center font-black" />
           </div>
@@ -183,17 +183,17 @@ export function PreweighTag({ data, logo, onLogoClick }) {
 export function MissingTag({ data, logo, onLogoClick }) {
   const items = toItems(data.missing);
   const many = items.length > 6; // lo normal son hasta 6 faltantes: una línea con rótulo para cada uno
-  // Con 5-6 faltantes se achica un poco la letra de arriba para que todo quepa en la hoja
-  const fieldMax = items.length > 4 && !many ? 54 : FIELD_MAX;
-  const itemMax = items.length > 4 ? 30 : 34;
+  // Este tag es secundario: con más de 4 faltantes se achican los datos de arriba y los faltantes para que quepan
+  const fieldMax = items.length > 4 ? 52 : 60;
+  const itemMax = items.length > 4 ? 26 : 32;
   return (
     <div className="label-page flex flex-col">
       <TagGrid>
         <DateRow data={data} logo={logo} onLogoClick={onLogoClick} />
-        <Field label="Name:" value={data.name} max={fieldMax} />
-        <Field label="Batch#:" value={data.batch} max={fieldMax} />
+        <Field label="Name" value={data.name} max={fieldMax} />
+        <Field label="Batch#" value={data.batch} max={fieldMax} />
         <Field label="P.O.#" value={data.po} max={fieldMax} />
-        <Field label="Batches:" value={data.batches} max={fieldMax} />
+        <Field label="Batches" value={data.batches} max={fieldMax} />
         <PalletRow data={data} />
         {!many &&
           items.map((t, i) => (
@@ -204,7 +204,7 @@ export function MissingTag({ data, logo, onLogoClick }) {
           ))}
         {many && (
           <div className="col-span-4">
-            <MissingMany items={items} area={200} />
+            <MissingMany items={items} area={170} />
           </div>
         )}
       </TagGrid>

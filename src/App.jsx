@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, BookmarkPlus, CheckCircle2, Info, X, Eraser, ImagePlus, ListChecks, Printer } from 'lucide-react';
+import { AlertTriangle, BookmarkPlus, CheckCircle2, ChevronsRight, Info, X, Eraser, ImagePlus, ListChecks, Printer } from 'lucide-react';
 import { useLang } from './i18n.js';
 import FormulaManager from './FormulaManager.jsx';
 import { deleteLogo, fetchFormulas, fetchLogo, shrinkImage, uploadLogo, writeFormulas } from './api.js';
@@ -35,10 +35,13 @@ const save = (key, value) => {
 const inputCls =
   'w-full px-3 py-2 border border-slate-300 rounded-md bg-white text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none';
 
-function Section({ title, children }) {
+function Section({ title, action, children }) {
   return (
     <section>
-      <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">{title}</h2>
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{title}</h2>
+        {action}
+      </div>
       {children}
     </section>
   );
@@ -169,6 +172,17 @@ export default function App() {
   const toggleCustomBatches = () =>
     setData((d) => (d.batchesCustom ? { ...d, batchesCustom: false } : { ...d, batchesCustom: true, batches: batchesText(d) }));
 
+  // Siguiente batch de la misma fórmula: batch +1; se conserva todo lo que se repite y se vacía lo que cambia.
+  const idInput = useRef(null);
+  const nextBatch = () => {
+    setData((d) => {
+      const n = /^\d+$/.test(norm(d.batch)) ? String(parseInt(d.batch, 10) + 1) : d.batch;
+      return { ...d, batch: n, identifier: '', missing: '', refer: '' };
+    });
+    setJob((j) => ({ ...j, withMissing: false, withRefer: false }));
+    idInput.current?.focus(); // lo siguiente que hay que escribir es el ID
+  };
+
   const newBatch = () =>
     setData((d) => ({ ...EMPTY, date: dateEdited.current ? d.date : todayStr(), ile: d.ile }));
 
@@ -209,7 +223,11 @@ export default function App() {
           </header>
 
           <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
-            <Section title={t('sec.batch')}>
+            <Section title={t('sec.batch')} action={
+              <button onClick={nextBatch} title={t('nextBatchTitle')} className="flex items-center gap-1 rounded-md bg-violet-100 px-2 py-1 text-[11px] font-bold normal-case tracking-normal text-violet-700 hover:bg-violet-200">
+                <ChevronsRight size={13} /> {t('nextBatch')}
+              </button>
+            }>
               <div className="grid gap-2">
                 <input
                   name="formula" list="formula-list" value={data.formula}
@@ -269,7 +287,7 @@ export default function App() {
                   </div>
                   <div className="flex items-center border border-slate-300 rounded-md bg-white focus-within:ring-2 focus-within:ring-violet-500 focus-within:border-violet-500">
                     <span className="pl-3 text-sm font-extrabold text-slate-400 select-none">ID-</span>
-                    <input name="identifier" value={stripId(data.identifier)} onChange={(e) => set('identifier', stripId(e.target.value))} placeholder="G9FB71" className="w-full px-1.5 py-2 text-sm font-semibold text-slate-900 bg-transparent outline-none" />
+                    <input ref={idInput} name="identifier" value={stripId(data.identifier)} onChange={(e) => set('identifier', stripId(e.target.value))} placeholder="G9FB71" className="w-full px-1.5 py-2 text-sm font-semibold text-slate-900 bg-transparent outline-none" />
                   </div>
                 </div>
                 {text('ile', 'ILE')}
