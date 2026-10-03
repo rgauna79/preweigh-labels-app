@@ -23,6 +23,10 @@ export function FitText({ text, max, min = 14, className = '', style, lock = fal
     };
     fit();
     document.fonts?.ready.then(fit);
+    // Si cambia el ancho de la casilla (p. ej. otra fila hace crecer la columna de títulos), se vuelve a ajustar
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit);
+    ro?.observe(box);
+    return () => ro?.disconnect();
   }, [text, max, min]);
 
   // lock: alto fijo según el tamaño máximo, para que una fila no se encoja cuando su texto se reduce.

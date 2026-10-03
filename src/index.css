@@ -30,8 +30,14 @@ body {
   border-radius: 6px;
 }
 
+/* La copia de impresión está siempre en el DOM, fuera de pantalla, para que el texto se mida
+   (y se achique) igual que en la vista previa. Con display:none no se podía medir y salía cortado. */
 .print-root {
-  display: none;
+  position: absolute;
+  left: -20000px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 @media print {
@@ -49,7 +55,9 @@ body {
     display: none !important;
   }
   .print-root {
-    display: block;
+    position: static;
+    visibility: visible;
+    pointer-events: auto;
   }
   /* Hoja Letter horizontal (11 x 8.5in) con la etiqueta centrada */
   .sheet {
