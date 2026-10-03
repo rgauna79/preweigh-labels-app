@@ -5,6 +5,8 @@ import FormulaManager from './FormulaManager.jsx';
 import { deleteLogo, fetchFormulas, fetchLogo, shrinkImage, uploadLogo, writeFormulas } from './api.js';
 import { LABEL_H, LABEL_W, batchesText, buildSheets, stripId, toItems } from './Labels.jsx';
 
+const MAX_PALLETS = [1, 2, 3, 4, 5, 6]; // tope de pallets por batch (lo normal es 1-3; algunos kits llegan a 5-6)
+
 const EMPTY = {
   date: '', formula: '', name: '', batch: '', batchTotal: '', batchesCustom: false, po: '', batches: '', ile: 'ILE', identifier: '',
   missing: '', refer: '',
@@ -295,16 +297,17 @@ export default function App() {
             </Section>
 
             <Section title={t('sec.pallets')}>
-              <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100 rounded-lg">
-                {[1, 2, 3].map((n) => (
+              <div className="grid grid-cols-6 gap-1 p-1 bg-slate-100 rounded-lg" role="group" aria-label={t('sec.pallets')}>
+                {MAX_PALLETS.map((n) => (
                   <button
                     key={n}
                     onClick={() => setJob((j) => ({ ...j, pallets: n }))}
+                    aria-pressed={job.pallets === n}
                     className={`py-2 rounded-md text-sm font-extrabold transition-colors ${
                       job.pallets === n ? 'bg-white shadow text-violet-700' : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
-                    {n} {n === 1 ? 'pallet' : 'pallets'}
+                    {n}
                   </button>
                 ))}
               </div>
