@@ -49,8 +49,8 @@ export function FitText({ text, max, min = 14, className = '', style, lock = fal
 // ("Weighed", "Formula", "Batches"), así todas las líneas arrancan en el mismo punto.
 const LINE = 'border-b-[3px] border-black text-center font-bold pb-0.5';
 const LABEL = 'label-text pr-3.5';
-const FIELD_MAX = 66; // tamaño de los valores de las filas principales
-const DATE_MAX = 64;
+const FIELD_MAX = 68; // tamaño de los valores de las filas principales
+const DATE_MAX = 66;
 
 function TagGrid({ children }) {
   return (
@@ -108,17 +108,8 @@ function LogoCorner({ logo, onLogoClick }) {
   );
 }
 
-/** "Number Pallet … of …": fila deliberadamente más pequeña que las demás. */
-function PalletRow({ data }) {
-  return (
-    <>
-      <span className="label-text-sm pr-3.5">Number Pallet</span>
-      <FitText text={data.palletNum} max={36} lock className={LINE} />
-      <span className="label-text-sm text-center">of</span>
-      <FitText text={data.palletTotal} max={36} lock className={LINE} />
-    </>
-  );
-}
+/** "1 of 3": número de este pallet y total de pallets del batch. */
+const palletText = (d) => `${d.palletNum} of ${d.palletTotal}`;
 
 /** "ID-" va siempre delante: el usuario solo escribe el código (G9FB71). */
 export const stripId = (v) => String(v ?? '').trim().replace(/^ID[-\s]*/i, '').toUpperCase();
@@ -166,13 +157,17 @@ export function PreweighTag({ data, logo, onLogoClick }) {
         <Field label="Batch#" value={data.batch} />
         <Field label="P.O.#" value={data.po} />
         <Field label="Batches" value={data.batches} />
-        <PalletRow data={data} />
-        <div className="col-span-4 grid grid-cols-2 gap-6 h-[84px]">
-          <div className="border-[3px] border-black flex items-center px-4">
+        {/* Fila inferior: ILE | ID | Pallet (la información de identificación junta) */}
+        <div className="col-span-4 grid gap-4 h-[92px]" style={{ gridTemplateColumns: '0.8fr 1.5fr 1.15fr' }}>
+          <div className="border-[3px] border-black flex items-center px-3">
             <FitText text={data.ile} max={56} className="text-center font-black" />
           </div>
-          <div className="border-[3px] border-black flex items-center px-4">
+          <div className="border-[3px] border-black flex items-center px-3">
             <FitText text={formatId(data.identifier)} max={56} className="text-center font-black" />
+          </div>
+          <div className="border-[3px] border-black flex flex-col items-center justify-center px-3">
+            <span className="text-[20px] font-bold leading-none tracking-[0.18em]">PALLET</span>
+            <FitText text={palletText(data)} max={50} className="text-center font-black" />
           </div>
         </div>
       </TagGrid>
@@ -194,7 +189,7 @@ export function MissingTag({ data, logo, onLogoClick }) {
         <Field label="Batch#" value={data.batch} max={fieldMax} />
         <Field label="P.O.#" value={data.po} max={fieldMax} />
         <Field label="Batches" value={data.batches} max={fieldMax} />
-        <PalletRow data={data} />
+        <Field label="Pallet" value={palletText(data)} max={44} />
         {!many &&
           items.map((t, i) => (
             <React.Fragment key={i}>

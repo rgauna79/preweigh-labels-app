@@ -22,12 +22,6 @@ body {
   line-height: 1.1;
   white-space: nowrap;
 }
-.label-text-sm {
-  font-size: 28px;
-  font-weight: 700;
-  line-height: 1.1;
-  white-space: nowrap;
-}
 .logo-placeholder {
   font-size: 14px;
   color: #94a3b8;
