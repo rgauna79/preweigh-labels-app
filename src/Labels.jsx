@@ -1,11 +1,26 @@
-import React, { useLayoutEffect, useRef } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 
 // Etiqueta: 10.5in x 8in (a 96 dpi). Se imprime centrada en hoja Letter horizontal.
 export const LABEL_W = 1008;
 export const LABEL_H = 768;
 
-/** Texto de una sola línea que reduce su tamaño de letra hasta caber en el ancho disponible. */
-export function FitText({ text, max, min = 14, className = '', style, lock = false }) {
+/** Una coma o "&" suelto ("A-1 , B-2 & C-3") se pega a la palabra anterior para no quedar al inicio de un renglón. */
+const glueSymbols = (words) =>
+  words.reduce((out, w) => {
+    if (out.length && /^[,;&]+$/.test(w)) out[out.length - 1] += ` ${w}`;
+    else out.push(w);
+    return out;
+  }, []);
+
+export const MIN_SINGLE = 38; // tamaño mínimo (px) al que se achica una línea antes de pasar a otro renglón
+
+/**
+ * Texto que se ajusta al ancho disponible.
+ * - Una línea: se achica hasta caber.
+ * - lines > 1: se achica solo hasta MIN_SINGLE; si aún no cabe, pasa a otro renglón (hasta `lines`)
+ *   con la letra más grande que quepa. Las palabras / códigos nunca se parten.
+ */
+export function FitText({ text, max, min = 14, className = '', style, lock = false, lines = 1 }) {
   const boxRef = useRef(null);
   const innerRef = useRef(null);
 
@@ -14,11 +29,35 @@ export function FitText({ text, max, min = 14, className = '', style, lock = fal
     const inner = innerRef.current;
     if (!box || !inner) return;
     const fit = () => {
+      inner.style.whiteSpace = 'nowrap';
+      inner.style.display = 'inline-block';
+      inner.style.width = '';
+      inner.style.overflowWrap = 'normal';
+      inner.querySelectorAll('span').forEach((w) => { w.style.whiteSpace = 'nowrap'; }); // palabras enteras
       inner.style.fontSize = `${max}px`;
       const avail = box.clientWidth;
       const need = inner.scrollWidth;
-      if (avail > 0 && need > avail) {
-        inner.style.fontSize = `${Math.max(min, Math.floor((max * avail) / need) - 1)}px`;
+      if (!(avail > 0 && need > avail)) return;
+      const single = Math.floor((max * avail) / need) - 1;
+      const floor = Math.min(max, MIN_SINGLE);
+      if (lines < 2 || single >= floor) {
+        inner.style.fontSize = `${Math.max(min, single)}px`;
+        return;
+      }
+      // Otro renglón: la letra más grande (hasta el límite) que quepa en `lines` renglones
+      inner.style.whiteSpace = 'normal';
+      inner.style.display = 'block';
+      inner.style.width = '100%';
+      let f = floor;
+      for (; f > min; f -= 1) {
+        inner.style.fontSize = `${f}px`;
+        if (inner.scrollHeight <= f * 1.2 * lines + 2 && inner.scrollWidth <= avail + 1) break;
+      }
+      inner.style.fontSize = `${f}px`;
+      // Último recurso (una "palabra" más ancha que la línea): se permite partirla antes que cortarla
+      if (inner.scrollWidth > avail + 1) {
+        inner.style.overflowWrap = 'anywhere';
+        inner.querySelectorAll('span').forEach((w) => { w.style.whiteSpace = 'normal'; });
       }
     };
     fit();
@@ -27,12 +66,13 @@ export function FitText({ text, max, min = 14, className = '', style, lock = fal
     const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit);
     ro?.observe(box);
     return () => ro?.disconnect();
-  }, [text, max, min]);
+  }, [text, max, min, lines]);
 
-  // lock: alto fijo según el tamaño máximo, para que una fila no se encoja cuando su texto se reduce.
+  // lock: alto según el tamaño máximo, para que una fila no se encoja cuando su texto se reduce.
+  // Con lines > 1 es un alto mínimo: la fila crece solo si el texto necesita más renglones.
   const lockStyle = lock
     ? {
-        height: Math.ceil(max * 1.2),
+        [lines > 1 ? 'minHeight' : 'height']: Math.ceil(max * 1.2),
         display: 'flex',
         alignItems: 'flex-end',
         justifyContent: /text-center/.test(className) ? 'center' : 'flex-start',
@@ -42,10 +82,33 @@ export function FitText({ text, max, min = 14, className = '', style, lock = fal
   return (
     <div ref={boxRef} className={`overflow-hidden ${/(^|\s)w-/.test(className) ? '' : 'w-full'} ${className}`} style={{ ...lockStyle, ...style }}>
       <span ref={innerRef} className="inline-block whitespace-nowrap" style={{ fontSize: max, lineHeight: 1.2 }}>
-        {text || '\u00A0'}
+        {lines > 1 && text
+          ? glueSymbols(text.split(' ')).map((w, i, arr) => (
+              <React.Fragment key={i}>
+                <span style={{ whiteSpace: 'nowrap' }}>{w}</span>
+                {i < arr.length - 1 ? ' ' : null}
+              </React.Fragment>
+            ))
+          : text || '\u00A0'}
       </span>
     </div>
   );
+}
+
+/** Renglones máximos [Name, P.O.] por nivel; se baja de nivel solo si el contenido no cabe en la hoja. */
+const WRAP_LEVELS = [[2, 3], [2, 2], [1, 2], [1, 1]];
+
+function useWrapGuard(deps) {
+  const rootRef = useRef(null);
+  const [level, setLevel] = useState(0);
+  useLayoutEffect(() => { setLevel(0); }, deps); // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    const grid = root?.firstElementChild;
+    if (!root || !grid || level >= WRAP_LEVELS.length - 1) return;
+    if (grid.offsetHeight > root.clientHeight - 72 + 1) setLevel((l) => l + 1);
+  });
+  return [rootRef, WRAP_LEVELS[level]];
 }
 
 // Todas las filas de una etiqueta son celdas de UNA sola cuadrícula:
@@ -68,11 +131,11 @@ function TagGrid({ children }) {
 }
 
 /** Una fila de la etiqueta: texto + línea que ocupa todo el ancho restante. */
-function Field({ label, value, max = FIELD_MAX }) {
+function Field({ label, value, max = FIELD_MAX, lines = 1 }) {
   return (
     <>
       <span className={LABEL}>{label}</span>
-      <FitText text={value} max={max} lock className={`col-span-3 ${LINE}`} />
+      <FitText text={value} max={max} lock lines={lines} className={`col-span-3 ${LINE}`} />
     </>
   );
 }
@@ -152,14 +215,15 @@ function ItemList({ items, area, maxFont, min = 14, weight = 'font-medium' }) {
 }
 
 export function PreweighTag({ data, logo, onLogoClick }) {
+  const [rootRef, [nameLines, poLines]] = useWrapGuard([data.name, data.po]);
   return (
-    <div className="label-page flex flex-col">
+    <div ref={rootRef} className="label-page flex flex-col">
       <TagGrid>
         <DateRow data={data} logo={logo} onLogoClick={onLogoClick} />
         <Field label="Formula" value={data.formula} />
-        <Field label="Name" value={data.name} />
+        <Field label="Name" value={data.name} lines={nameLines} />
         <Field label="Batch#" value={data.batch} />
-        <Field label="P.O.#" value={data.po} />
+        <Field label="P.O.#" value={data.po} lines={poLines} />
         <Field label="Batches" value={data.batches} />
         {/* Fila inferior: ILE | ID | Pallet (la información de identificación junta) */}
         <div className="col-span-4 grid gap-4 h-[92px]" style={{ gridTemplateColumns: '0.8fr 1.5fr 1.15fr' }}>
@@ -185,13 +249,14 @@ export function MissingTag({ data, logo, onLogoClick }) {
   // Este tag es secundario: con más de 4 faltantes se achican los datos de arriba y los faltantes para que quepan
   const fieldMax = items.length > 4 ? 52 : 60;
   const itemMax = items.length > 4 ? 26 : 32;
+  const [rootRef, [nameLines, poLines]] = useWrapGuard([data.name, data.po, data.missing]);
   return (
-    <div className="label-page flex flex-col">
+    <div ref={rootRef} className="label-page flex flex-col">
       <TagGrid>
         <DateRow data={data} logo={logo} onLogoClick={onLogoClick} />
-        <Field label="Name" value={data.name} max={fieldMax} />
+        <Field label="Name" value={data.name} max={fieldMax} lines={nameLines} />
         <Field label="Batch#" value={data.batch} max={fieldMax} />
-        <Field label="P.O.#" value={data.po} max={fieldMax} />
+        <Field label="P.O.#" value={data.po} max={fieldMax} lines={poLines} />
         <Field label="Batches" value={data.batches} max={fieldMax} />
         <Field label="Pallet" value={palletText(data)} max={44} />
         {!many &&

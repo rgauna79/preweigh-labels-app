@@ -5,6 +5,9 @@ import FormulaManager from './FormulaManager.jsx';
 import { deleteLogo, fetchFormulas, fetchLogo, shrinkImage, uploadLogo, writeFormulas } from './api.js';
 import { LABEL_H, LABEL_W, batchesText, buildSheets, stripId, toItems } from './Labels.jsx';
 
+// Límite de caracteres de los campos que pueden alargarse (se imprimen en 2-3 renglones como máximo)
+const LIMITS = { name: 60, po: 120 };
+
 const MAX_PALLETS = [1, 2, 3, 4, 5, 6]; // tope de pallets por batch (lo normal es 1-3; algunos kits llegan a 5-6)
 
 const EMPTY = {
@@ -207,6 +210,24 @@ export default function App() {
     <input key={name} name={name} value={data[name]} onChange={onChange} placeholder={placeholder} className={`${inputCls} ${extra}`} />
   );
 
+  // Campo con límite de caracteres: avisa al acercarse y al llegar al tope
+  const limited = (name, placeholder) => {
+    const max = LIMITS[name];
+    const n = data[name].length;
+    const atLimit = n >= max;
+    return (
+      <div>
+        <input key={name} name={name} value={data[name]} onChange={onChange} maxLength={max} placeholder={placeholder}
+          className={`${inputCls} ${atLimit ? '!border-rose-500 !bg-rose-50' : ''}`} />
+        {n >= max * 0.8 && (
+          <p className={`mt-1 text-right text-[11px] font-bold ${atLimit ? 'text-rose-700' : 'text-amber-700'}`}>
+            {atLimit ? t('limit.reached', { n, max }) : t('limit.count', { n, max })}
+          </p>
+        )}
+      </div>
+    );
+  };
+
   return (
     <>
       <div className="app-root flex h-screen bg-slate-100 font-sans text-slate-900">
@@ -246,7 +267,7 @@ export default function App() {
                 <datalist id="formula-list">
                   {formulas.filter((f) => f.formula).map((f, i) => <option key={i} value={f.formula}>{f.name}</option>)}
                 </datalist>
-                {text('name', 'Name')}
+                {limited('name', 'Name')}
                 {serverError && (
                   <div role="alert" className="lm-slide flex items-start gap-2 rounded-md border-l-4 border-rose-600 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-900">
                     <AlertTriangle size={16} className="shrink-0 text-rose-600" /> <span className="break-words">{serverError}</span>
@@ -287,7 +308,7 @@ export default function App() {
                     {data.batchesCustom ? t('batches.auto') : t('batches.custom')}
                   </button>
                 </div>
-                {text('po', 'P.O.#')}
+                {limited('po', 'P.O.#')}
                 <div className="grid grid-cols-2 gap-2">
                   <div className="relative">
                     {text('date', t('ph.date'), 'pr-14')}
