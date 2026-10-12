@@ -2,11 +2,10 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, BookmarkPlus, CheckCircle2, ChevronsRight, Info, X, Eraser, ImagePlus, ListChecks, Printer } from 'lucide-react';
 import { useLang } from './i18n.js';
 import FormulaManager from './FormulaManager.jsx';
+import ListField from './ListField.jsx';
+import { LIMITS } from './limits.js';
 import { deleteLogo, fetchFormulas, fetchLogo, shrinkImage, uploadLogo, writeFormulas } from './api.js';
 import { LABEL_H, LABEL_W, batchesText, buildSheets, stripId, toItems } from './Labels.jsx';
-
-// Límite de caracteres de los campos que pueden alargarse (se imprimen en 2-3 renglones como máximo)
-const LIMITS = { name: 60, po: 120 };
 
 const MAX_PALLETS = [1, 2, 3, 4, 5, 6]; // tope de pallets por batch (lo normal es 1-3; algunos kits llegan a 5-6)
 
@@ -39,6 +38,16 @@ const save = (key, value) => {
 
 const inputCls =
   'w-full px-3 py-2 border border-slate-300 rounded-md bg-white text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none';
+
+/** Campo con su título visible encima (el texto de ayuda desaparece al escribir, el título no). */
+function Labeled({ label, children }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] font-bold text-slate-500">{label}</span>
+      {children}
+    </label>
+  );
+}
 
 function Section({ title, action, children }) {
   return (
@@ -85,8 +94,21 @@ export default function App() {
 
   const set = (name, value) => setData((d) => ({ ...d, [name]: value }));
   const onChange = (e) => {
-    if (e.target.name === 'date') dateEdited.current = true;
-    set(e.target.name, e.target.value);
+    const { name } = e.target;
+    let { value } = e.target;
+    if (name === 'date') dateEdited.current = true;
+    if (name === 'batchTotal') value = value.replace(/\D/g, ''); // el total solo lleva dígitos
+    if (typeof LIMITS[name] === 'number') value = value.slice(0, LIMITS[name]);
+    set(name, value);
+  };
+
+  // Enter pasa al siguiente campo (la fórmula se excluye: ahí Enter elige de la lista de sugerencias)
+  const onEnterNext = (e) => {
+    const el = e.target;
+    if (e.key !== 'Enter' || el.tagName !== 'INPUT' || el.type === 'checkbox' || el.type === 'file' || el.name === 'formula') return;
+    e.preventDefault();
+    const fields = [...e.currentTarget.querySelectorAll('input:not([type=checkbox]):not([type=file]), textarea')];
+    fields[fields.indexOf(el) + 1]?.focus();
   };
 
   const norm = (s) => String(s ?? '').trim();
@@ -203,28 +225,29 @@ export default function App() {
   };
   const effective = { ...data, batches: batchesText(data) };
   const emptyFields = Object.entries(required).filter(([k]) => !norm(effective[k])).map(([, l]) => l);
-  if (job.withMissing && !toItems(data.missing).length) emptyFields.push(t('empty.missing'));
-  if (job.withRefer && !toItems(data.refer).length) emptyFields.push(t('empty.refer'));
+  if (job.withMissing && !toItems(data.missing, LIMITS.missing).length) emptyFields.push(t('empty.missing'));
+  if (job.withRefer && !toItems(data.refer, LIMITS.refer).length) emptyFields.push(t('empty.refer'));
 
-  const text = (name, placeholder, extra = '') => (
-    <input key={name} name={name} value={data[name]} onChange={onChange} placeholder={placeholder} className={`${inputCls} ${extra}`} />
+  const text = (name, placeholder, extra = '', attrs = {}) => (
+    <input key={name} name={name} value={data[name]} onChange={onChange} placeholder={placeholder}
+      maxLength={typeof LIMITS[name] === 'number' ? LIMITS[name] : undefined} className={`${inputCls} ${extra}`} {...attrs} />
   );
 
-  // Campo con límite de caracteres: avisa al acercarse y al llegar al tope
-  const limited = (name, placeholder) => {
+  // Campo con título y límite de caracteres: avisa al acercarse y al llegar al tope
+  const limited = (name, label, placeholder = '') => {
     const max = LIMITS[name];
     const n = data[name].length;
     const atLimit = n >= max;
     return (
-      <div>
+      <Labeled label={label}>
         <input key={name} name={name} value={data[name]} onChange={onChange} maxLength={max} placeholder={placeholder}
           className={`${inputCls} ${atLimit ? '!border-rose-500 !bg-rose-50' : ''}`} />
         {n >= max * 0.8 && (
-          <p className={`mt-1 text-right text-[11px] font-bold ${atLimit ? 'text-rose-700' : 'text-amber-700'}`}>
+          <span className={`mt-1 block text-right text-[11px] font-bold ${atLimit ? 'text-rose-700' : 'text-amber-700'}`}>
             {atLimit ? t('limit.reached', { n, max }) : t('limit.count', { n, max })}
-          </p>
+          </span>
         )}
-      </div>
+      </Labeled>
     );
   };
 
@@ -252,22 +275,24 @@ export default function App() {
             </button>
           </header>
 
-          <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
+          <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5" onKeyDown={onEnterNext}>
             <Section title={t('sec.batch')} action={
               <button onClick={nextBatch} disabled={atLastBatch} title={atLastBatch ? t('nextBatchLast') : t('nextBatchTitle')}
                 className="flex items-center gap-1 rounded-md bg-violet-100 px-2 py-1 text-[11px] font-bold normal-case tracking-normal text-violet-700 hover:bg-violet-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-violet-100">
                 <ChevronsRight size={13} /> {t('nextBatch')}
               </button>
             }>
-              <div className="grid gap-2">
-                <input
-                  name="formula" list="formula-list" value={data.formula}
-                  onChange={(e) => applyFormula(e.target.value)} placeholder={t('ph.formula')} className={inputCls}
-                />
+              <div className="grid gap-3">
+                <Labeled label={t('lbl.formula')}>
+                  <input
+                    name="formula" list="formula-list" value={data.formula} maxLength={LIMITS.formula} autoFocus
+                    onChange={(e) => applyFormula(e.target.value.slice(0, LIMITS.formula))} placeholder="300909" className={inputCls}
+                  />
+                </Labeled>
                 <datalist id="formula-list">
                   {formulas.filter((f) => f.formula).map((f, i) => <option key={i} value={f.formula}>{f.name}</option>)}
                 </datalist>
-                {limited('name', 'Name')}
+                {limited('name', t('lbl.name'))}
                 {serverError && (
                   <div role="alert" className="lm-slide flex items-start gap-2 rounded-md border-l-4 border-rose-600 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-900">
                     <AlertTriangle size={16} className="shrink-0 text-rose-600" /> <span className="break-words">{serverError}</span>
@@ -291,14 +316,16 @@ export default function App() {
                     <button onClick={() => setStatus('')} aria-label="×" className="shrink-0 opacity-60 hover:opacity-100"><X size={14} /></button>
                   </div>
                 )}
-                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                  {text('batch', 'Batch#', batchOverTotal ? '!border-rose-500 !bg-rose-50' : '')}
-                  <span className="text-sm font-extrabold text-slate-400">/</span>
-                  {text('batchTotal', t('ph.batchTotal'), `${data.batchesCustom ? 'opacity-50' : ''} ${batchOverTotal ? '!border-rose-500 !bg-rose-50' : ''}`)}
+                <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
+                  <Labeled label={t('lbl.batch')}>{text('batch', '3', batchOverTotal ? '!border-rose-500 !bg-rose-50' : '')}</Labeled>
+                  <span className="pb-2 text-sm font-extrabold text-slate-400">/</span>
+                  <Labeled label={t('lbl.total')}>
+                    {text('batchTotal', '12', `${data.batchesCustom ? 'opacity-50' : ''} ${batchOverTotal ? '!border-rose-500 !bg-rose-50' : ''}`, { inputMode: 'numeric' })}
+                  </Labeled>
                 </div>
-                <div className="-mt-1 flex items-center gap-2 text-xs">
+                <div className="-mt-1.5 flex items-center gap-2 text-xs">
                   {data.batchesCustom ? (
-                    <input name="batches" value={data.batches} onChange={onChange} placeholder={t('batches.customPh')} className={`${inputCls} !py-1.5`} />
+                    <input name="batches" value={data.batches} maxLength={LIMITS.batches} onChange={onChange} placeholder={t('batches.customPh')} className={`${inputCls} !py-1.5`} />
                   ) : (
                     <p className="flex-1 font-semibold text-slate-500">
                       Batches: <span className="font-extrabold text-slate-900">{batchesText(data) || '—'}</span>
@@ -308,20 +335,26 @@ export default function App() {
                     {data.batchesCustom ? t('batches.auto') : t('batches.custom')}
                   </button>
                 </div>
-                {limited('po', 'P.O.#')}
+                {limited('po', t('lbl.po'), '26101885-1')}
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="relative">
-                    {text('date', t('ph.date'), 'pr-14')}
-                    {data.date !== todayStr() && (
-                      <button onClick={setToday} title={t('todayTitle')} className="absolute right-1.5 top-1.5 px-2 py-1 rounded bg-violet-100 text-violet-700 text-xs font-bold hover:bg-violet-200">{t('today')}</button>
-                    )}
-                  </div>
-                  <div className="flex items-center border border-slate-300 rounded-md bg-white focus-within:ring-2 focus-within:ring-violet-500 focus-within:border-violet-500">
-                    <span className="pl-3 text-sm font-extrabold text-slate-400 select-none">ID-</span>
-                    <input ref={idInput} name="identifier" value={stripId(data.identifier)} onChange={(e) => set('identifier', stripId(e.target.value))} placeholder="G9FB71" className="w-full px-1.5 py-2 text-sm font-semibold text-slate-900 bg-transparent outline-none" />
-                  </div>
+                  <Labeled label={t('lbl.date')}>
+                    <div className="relative">
+                      {text('date', 'MM/DD/YY', 'pr-14')}
+                      {data.date !== todayStr() && (
+                        <button onClick={setToday} title={t('todayTitle')} className="absolute right-1.5 top-1.5 px-2 py-1 rounded bg-violet-100 text-violet-700 text-xs font-bold hover:bg-violet-200">{t('today')}</button>
+                      )}
+                    </div>
+                  </Labeled>
+                  <Labeled label={t('lbl.id')}>
+                    <div className="flex items-center border border-slate-300 rounded-md bg-white focus-within:ring-2 focus-within:ring-violet-500 focus-within:border-violet-500">
+                      <span className="pl-3 text-sm font-extrabold text-slate-400 select-none">ID-</span>
+                      <input ref={idInput} name="identifier" value={stripId(data.identifier)} maxLength={LIMITS.identifier + 3}
+                        onChange={(e) => set('identifier', stripId(e.target.value).slice(0, LIMITS.identifier))} placeholder="G9FB71"
+                        className="w-full px-1.5 py-2 text-sm font-semibold text-slate-900 bg-transparent outline-none" />
+                    </div>
+                  </Labeled>
                 </div>
-                {text('ile', 'ILE')}
+                <Labeled label={t('lbl.ile')}>{text('ile', 'ILE')}</Labeled>
               </div>
             </Section>
 
@@ -348,9 +381,9 @@ export default function App() {
                 {t('job.missing')}
               </label>
               {job.withMissing && (
-                <div className="grid gap-2 p-3 rounded-lg bg-rose-50 border border-rose-200">
-                  <textarea name="missing" value={data.missing} onChange={onChange} rows={5} placeholder={t('list.hint', { example: '701360 Pure Vanilla Ext 2' })} className={`${inputCls} resize-y`} />
-                  <p className="text-xs text-rose-700">{t('list.count', { n: toItems(data.missing).length })}</p>
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200">
+                  <ListField name="missing" value={data.missing} onChange={(v) => set('missing', v)} limits={LIMITS.missing} tone="rose"
+                    placeholder={t('list.hint', { example: '701360 Pure Vanilla Ext 2' })} />
                 </div>
               )}
             </Section>
@@ -361,9 +394,9 @@ export default function App() {
                 {t('job.refer')}
               </label>
               {job.withRefer && (
-                <div className="grid gap-2 p-3 rounded-lg bg-sky-50 border border-sky-200">
-                  <textarea name="refer" value={data.refer} onChange={onChange} rows={5} placeholder={t('list.hint', { example: '702757 Chiber Mushroom' })} className={`${inputCls} resize-y`} />
-                  <p className="text-xs text-sky-700">{t('list.count', { n: toItems(data.refer).length })}</p>
+                <div className="p-3 rounded-lg bg-sky-50 border border-sky-200">
+                  <ListField name="refer" value={data.refer} onChange={(v) => set('refer', v)} limits={LIMITS.refer} tone="sky"
+                    placeholder={t('list.hint', { example: '702757 Chiber Mushroom' })} />
                 </div>
               )}
             </Section>

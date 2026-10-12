@@ -1,4 +1,5 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
+import { LIMITS } from './limits.js';
 
 // Etiqueta: 10.5in x 8in (a 96 dpi). Se imprime centrada en hoja Letter horizontal.
 export const LABEL_W = 1008;
@@ -118,6 +119,7 @@ const LINE = 'border-b-[3px] border-black text-center font-bold pb-0.5';
 const LABEL = 'label-text pr-3.5';
 const FIELD_MAX = 68; // tamaño de los valores de las filas principales
 const DATE_MAX = 66;
+const MISSING_FIELD_MAX = 56; // el Missing es secundario: un poco más pequeño que el principal para dejar sitio a la lista
 
 function TagGrid({ children }) {
   return (
@@ -178,6 +180,24 @@ function LogoCorner({ logo, onLogoClick }) {
 /** "1 of 3": número de este pallet y total de pallets del batch. */
 const palletText = (d) => `${d.palletNum} of ${d.palletTotal}`;
 
+/** Franja inferior: ILE | ID | PALLET. Igual en el tag principal y en el Missing para que se reconozcan como pareja. */
+function IdentityStrip({ data, height = 92 }) {
+  return (
+    <div className="col-span-4 grid gap-4" style={{ gridTemplateColumns: '0.8fr 1.5fr 1.15fr', height }}>
+      <div className="border-[3px] border-black flex items-center px-3">
+        <FitText text={data.ile} max={56} className="text-center font-black" />
+      </div>
+      <div className="border-[3px] border-black flex items-center px-3">
+        <FitText text={formatId(data.identifier)} max={56} className="text-center font-black" />
+      </div>
+      <div className="border-[3px] border-black flex flex-col items-center justify-center px-3">
+        <span className="text-[20px] font-bold leading-none tracking-[0.18em]">PALLET</span>
+        <FitText text={palletText(data)} max={50} className="text-center font-black" />
+      </div>
+    </div>
+  );
+}
+
 /** "ID-" va siempre delante: el usuario solo escribe el código (G9FB71). */
 export const stripId = (v) => String(v ?? '').trim().replace(/^ID[-\s]*/i, '').toUpperCase();
 export const formatId = (v) => (stripId(v) ? `ID-${stripId(v)}` : '');
@@ -193,8 +213,9 @@ export const batchesText = (d) => {
   return b && total ? `${b}/${total}` : '';
 };
 
-/** Lista de ingredientes (uno por línea de texto) sin líneas vacías. */
-export const toItems = (text) => String(text ?? '').split('\n').map((t) => t.trim()).filter(Boolean);
+/** Lista de ingredientes (uno por línea de texto) sin líneas vacías y con el tope de renglones y de largo. */
+export const toItems = (text, { lines = Infinity, chars = Infinity } = {}) =>
+  String(text ?? '').split('\n').map((t) => t.trim().slice(0, chars)).filter(Boolean).slice(0, lines);
 
 /**
  * Lista centrada que se adapta a la cantidad: 1 columna hasta 6 ítems, 2 hasta 14 y 3 después.
@@ -225,96 +246,74 @@ export function PreweighTag({ data, logo, onLogoClick }) {
         <Field label="Batch#" value={data.batch} />
         <Field label="P.O.#" value={data.po} lines={poLines} />
         <Field label="Batches" value={data.batches} />
-        {/* Fila inferior: ILE | ID | Pallet (la información de identificación junta) */}
-        <div className="col-span-4 grid gap-4 h-[92px]" style={{ gridTemplateColumns: '0.8fr 1.5fr 1.15fr' }}>
-          <div className="border-[3px] border-black flex items-center px-3">
-            <FitText text={data.ile} max={56} className="text-center font-black" />
-          </div>
-          <div className="border-[3px] border-black flex items-center px-3">
-            <FitText text={formatId(data.identifier)} max={56} className="text-center font-black" />
-          </div>
-          <div className="border-[3px] border-black flex flex-col items-center justify-center px-3">
-            <span className="text-[20px] font-bold leading-none tracking-[0.18em]">PALLET</span>
-            <FitText text={palletText(data)} max={50} className="text-center font-black" />
-          </div>
-        </div>
+        <IdentityStrip data={data} />
       </TagGrid>
     </div>
   );
 }
 
-export function MissingTag({ data, logo, onLogoClick }) {
-  const items = toItems(data.missing);
-  const many = items.length > 6; // lo normal son hasta 6 faltantes: una línea con rótulo para cada uno
-  // Este tag es secundario: con más de 4 faltantes se achican los datos de arriba y los faltantes para que quepan
-  const fieldMax = items.length > 4 ? 52 : 60;
-  const itemMax = items.length > 4 ? 26 : 32;
-  const [rootRef, [nameLines, poLines]] = useWrapGuard([data.name, data.po, data.missing]);
-  return (
-    <div ref={rootRef} className="label-page flex flex-col">
-      <TagGrid>
-        <DateRow data={data} logo={logo} onLogoClick={onLogoClick} />
-        <Field label="Name" value={data.name} max={fieldMax} lines={nameLines} />
-        <Field label="Batch#" value={data.batch} max={fieldMax} />
-        <Field label="P.O.#" value={data.po} max={fieldMax} lines={poLines} />
-        <Field label="Batches" value={data.batches} max={fieldMax} />
-        <Field label="Pallet" value={palletText(data)} max={44} />
-        {!many &&
-          items.map((t, i) => (
-            <React.Fragment key={i}>
-              <span className="text-[22px] font-medium tracking-wide pr-3.5 pb-1 whitespace-nowrap">MISSING INGREDIENT</span>
-              <FitText text={t} max={itemMax} lock className="col-span-3 border-b-[3px] border-black font-medium pb-0.5" />
-            </React.Fragment>
-          ))}
-        {many && (
-          <div className="col-span-4">
-            <MissingMany items={items} area={170} />
-          </div>
-        )}
-      </TagGrid>
-    </div>
-  );
-}
-
-function MissingMany({ items, area }) {
-  const cols = items.length <= 16 ? 2 : 3;
+/** Faltantes: un encabezado y líneas numeradas (1 columna hasta 4, 2 columnas hasta 8). */
+function MissingList({ items }) {
+  const cols = items.length > 4 ? 2 : 1;
   const rows = Math.ceil(items.length / cols);
-  const rowH = Math.min(46, Math.floor(area / rows));
-  const font = Math.max(12, Math.floor(rowH * 0.7));
   return (
-    <div>
-      <div className="text-[24px] font-bold tracking-wide mb-1">MISSING INGREDIENTS</div>
-      <div className="grid gap-x-8" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gridAutoFlow: 'column', gridTemplateRows: `repeat(${rows}, ${rowH}px)` }}>
+    <div className="col-span-4">
+      <div className="mb-1 text-[22px] font-bold leading-none tracking-wide">MISSING INGREDIENTS</div>
+      <div className="grid gap-x-8" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gridAutoFlow: 'column', gridTemplateRows: `repeat(${rows}, 38px)` }}>
         {items.map((t, i) => (
-          <FitText key={i} text={t} max={font} min={11} className="border-b-2 border-black font-medium" />
+          <div key={i} className="flex items-end gap-2 border-b-[3px] border-black">
+            <span className="w-7 shrink-0 pb-0.5 text-[20px] font-bold leading-none text-slate-500">{i + 1}</span>
+            <FitText text={t} max={26} min={12} className="font-medium pb-0.5" />
+          </div>
         ))}
       </div>
     </div>
   );
 }
 
+export function MissingTag({ data, logo, onLogoClick }) {
+  const items = toItems(data.missing, LIMITS.missing);
+  const [rootRef, [nameLines, poLines]] = useWrapGuard([data.name, data.po, data.missing]);
+  return (
+    <div ref={rootRef} className="label-page flex flex-col">
+      <TagGrid>
+        <DateRow data={data} logo={logo} onLogoClick={onLogoClick} />
+        <Field label="Name" value={data.name} max={MISSING_FIELD_MAX} lines={nameLines} />
+        <Field label="Batch#" value={data.batch} max={MISSING_FIELD_MAX} />
+        <Field label="P.O.#" value={data.po} max={MISSING_FIELD_MAX} lines={poLines} />
+        <Field label="Batches" value={data.batches} max={MISSING_FIELD_MAX} />
+        {items.length > 0 && <MissingList items={items} />}
+        <IdentityStrip data={data} height={84} />
+      </TagGrid>
+    </div>
+  );
+}
+
+/** Línea de identificación de las hojas Refer: "300297 YGLV Ningxia Red JP 2/4" + "ID-AED739". */
+const referBatchLine = (d) => [d.formula, d.name, d.batches].filter(Boolean).join(' ');
+
 export function ReferPage1({ data, logo, onLogoClick }) {
-  const items = toItems(data.refer);
-  const batchLine = [data.formula, data.name, data.batches].filter(Boolean).join(' ');
+  const items = toItems(data.refer, LIMITS.refer);
   return (
     <div className="label-page flex flex-col items-center text-center" style={{ paddingTop: REFER_TOP }}>
       <LogoCorner logo={logo} onLogoClick={onLogoClick} />
-      <div className="text-[84px] font-black leading-none">{data.ile || 'ILE'}</div>
-      <div className="text-[92px] font-black leading-none mt-3">KEEP IN REFER:</div>
-      <div className="flex-1 w-full flex items-center pt-4 pb-4">
-        <ItemList items={items} area={215} maxFont={60} min={16} />
+      <div className="text-[76px] font-black leading-none">{data.ile || 'ILE'}</div>
+      <div className="mt-2 text-[84px] font-black leading-none">KEEP IN REFER:</div>
+      <div className="flex-1 w-full flex items-center pt-3 pb-3">
+        <ItemList items={items} area={190} maxFont={60} min={16} />
       </div>
       <div className="w-full">
-        <div className="text-[62px] font-black leading-tight">BATCH:</div>
-        <FitText text={batchLine} max={60} min={22} className="font-black text-center" />
+        <div className="text-[54px] font-black leading-tight">BATCH:</div>
+        <FitText text={referBatchLine(data)} max={54} min={22} className="font-black text-center" />
         <FitText text={formatId(data.identifier)} max={48} className="font-black text-center" />
       </div>
     </div>
   );
 }
 
+/** Esta hoja se anexa al batch record: lleva la misma identificación que la hoja 1 para no perder a qué batch pertenece. */
 export function ReferPage2({ data, logo, onLogoClick }) {
-  const items = toItems(data.refer);
+  const items = toItems(data.refer, LIMITS.refer);
   const compact = items.length > 4; // con muchos ítems el título se achica para dejar espacio
   const title = compact ? 84 : 112;
   return (
@@ -322,8 +321,12 @@ export function ReferPage2({ data, logo, onLogoClick }) {
       <LogoCorner logo={logo} onLogoClick={onLogoClick} />
       <div className="font-black leading-none" style={{ fontSize: title }}>ITEMS IN</div>
       <div className="font-black leading-none" style={{ fontSize: title, marginTop: compact ? 14 : 36 }}>REFER {data.ile || 'ILE'}</div>
-      <div className="flex-1 w-full flex items-center pt-4">
-        <ItemList items={items} area={compact ? 380 : 280} maxFont={68} min={16} />
+      <div className="flex-1 w-full flex items-center pt-3 pb-3">
+        <ItemList items={items} area={compact ? 290 : 200} maxFont={68} min={16} />
+      </div>
+      <div className="w-full border-t-[3px] border-black pt-2">
+        <FitText text={referBatchLine(data)} max={44} min={20} className="font-black text-center" />
+        <FitText text={formatId(data.identifier)} max={40} className="font-black text-center" />
       </div>
     </div>
   );

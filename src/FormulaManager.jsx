@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Download, Loader2, Plus, Search, Trash2, Upload, X } from 'lucide-react';
+import Modal from './Modal.jsx';
 import { useLang } from './i18n.js';
 import { downloadText, formulasToCsv, parseFormulasCsv } from './formulas.js';
 
@@ -152,8 +153,8 @@ export default function FormulaManager({ formulas, onSave, onDelete, onImport, o
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-6" onClick={onClose}>
-      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-full flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+    <Modal onClose={onClose} className="max-w-3xl" labelledBy="fm-title">
+      <>
         {/* Barra de progreso indeterminada mientras hay una tarea larga */}
         {busy && (
           <div className="absolute top-0 left-0 right-0 h-1 bg-violet-100 overflow-hidden z-10" role="progressbar" aria-label={busy}>
@@ -162,7 +163,7 @@ export default function FormulaManager({ formulas, onSave, onDelete, onImport, o
         )}
 
         <header className="flex items-center gap-3 px-5 py-4 border-b border-slate-200">
-          <h2 className="text-lg font-extrabold flex-1">{t('fm.title', { n: formulas.length })}</h2>
+          <h2 id="fm-title" className="text-lg font-extrabold flex-1">{t('fm.title', { n: formulas.length })}</h2>
           <button onClick={onClose} className="p-1.5 rounded-md hover:bg-slate-100" aria-label={t('fm.close')}><X size={18} /></button>
         </header>
 
@@ -211,7 +212,7 @@ export default function FormulaManager({ formulas, onSave, onDelete, onImport, o
         </div>
 
         <footer className="px-5 py-3 border-t border-slate-200 text-xs text-slate-500">{t('fm.footer')}</footer>
-      </div>
-    </div>
+      </>
+    </Modal>
   );
 }

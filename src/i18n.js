@@ -46,6 +46,10 @@ const STRINGS = {
     'err.not_image': 'The logo must be an image', 'err.too_big': 'Image is too large', 'err.no_db': 'The database is not connected to the project',
     'err.bad_op': 'Unknown operation', 'err.bad_json': 'Invalid request', 'err.not_found': 'Not found', 'err.method': 'Method not allowed',
     'err.image': 'Invalid image',
+    // Fase 1: títulos y límites
+    'lbl.formula': 'Formula', 'lbl.name': 'Name', 'lbl.batch': 'Batch #', 'lbl.total': 'Total batches', 'lbl.po': 'P.O. #',
+    'lbl.date': 'Date weighed', 'lbl.id': 'ID', 'lbl.ile': 'ILE',
+    'list.lines': '{n}/{max} lines', 'list.full': '{max}/{max} lines · limit reached', 'list.chars': 'up to {max} characters each',
   },
   es: {
     subtitle: 'Tags de preweigh',
@@ -89,6 +93,10 @@ const STRINGS = {
     'err.not_image': 'El logo debe ser una imagen', 'err.too_big': 'Imagen demasiado grande', 'err.no_db': 'Falta conectar la base de datos al proyecto',
     'err.bad_op': 'Operación desconocida', 'err.bad_json': 'Solicitud inválida', 'err.not_found': 'No encontrado', 'err.method': 'Método no permitido',
     'err.image': 'Imagen no válida',
+    // Fase 1: títulos y límites
+    'lbl.formula': 'Fórmula', 'lbl.name': 'Nombre', 'lbl.batch': 'Batch #', 'lbl.total': 'Total de batches', 'lbl.po': 'P.O. #',
+    'lbl.date': 'Fecha de pesado', 'lbl.id': 'ID', 'lbl.ile': 'ILE',
+    'list.lines': '{n}/{max} líneas', 'list.full': '{max}/{max} líneas · límite alcanzado', 'list.chars': 'hasta {max} caracteres cada una',
   },
 };
 
