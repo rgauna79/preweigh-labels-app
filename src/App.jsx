@@ -1,10 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, BookmarkPlus, CheckCircle2, ChevronsRight, Info, X, Eraser, ImagePlus, ListChecks, Printer } from 'lucide-react';
+import { AlertTriangle, BookmarkPlus, CheckCircle2, ChevronsRight, Clock, Eraser, Info, Minus, Plus, Printer, Settings as Cog, X } from 'lucide-react';
 import { useLang } from './i18n.js';
 import FormulaManager from './FormulaManager.jsx';
 import ListField from './ListField.jsx';
+import Toast from './Toast.jsx';
+import HistoryModal from './HistoryModal.jsx';
+import SettingsModal from './SettingsModal.jsx';
+import PrintConfirm from './PrintConfirm.jsx';
+import { collectChecks, findIdUse, fmtStamp } from './checks.js';
 import { LIMITS } from './limits.js';
-import { deleteLogo, fetchFormulas, fetchLogo, shrinkImage, uploadLogo, writeFormulas } from './api.js';
+import { addHistory, deleteLogo, fetchFormulas, fetchHistory, fetchLogo, shrinkImage, uploadLogo, writeFormulas } from './api.js';
 import { LABEL_H, LABEL_W, batchesText, buildSheets, stripId, toItems } from './Labels.jsx';
 
 const MAX_PALLETS = [1, 2, 3, 4, 5, 6]; // tope de pallets por batch (lo normal es 1-3; algunos kits llegan a 5-6)
@@ -64,17 +69,28 @@ function Section({ title, action, children }) {
 export default function App() {
   const { lang, setLang, t } = useLang();
   const [data, setData] = useState(() => ({ ...EMPTY, ...load('lm.data', {}), date: todayStr() }));
-  const [job, setJob] = useState(() => ({ pallets: 1, withMissing: false, withRefer: false, ...load('lm.job', {}) }));
+  const [job, setJob] = useState(() => ({ pallets: 1, withMissing: false, withRefer: false, copies: 1, ...load('lm.job', {}) }));
   const [formulas, setFormulas] = useState([]);
   const [showFormulas, setShowFormulas] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [historyError, setHistoryError] = useState('');
+  const [confirmChecks, setConfirmChecks] = useState(null); // revisión previa a imprimir (null = cerrada)
+  const [by, setBy] = useState(() => load('lm.by', ''));
+  const [stamp, setStamp] = useState(() => load('lm.stamp', false));
+  const [printedAt, setPrintedAt] = useState(null);
+  const [toast, setToast] = useState(null); // { text, undo }
+  const toastTimer = useRef(null);
   const [logo, setLogo] = useState(null);
   const [statusObj, setStatusObj] = useState(null); // { text, type: 'info' | 'success' | 'error' }
   const setStatus = (text, type = 'info') => setStatusObj(text ? { text, type } : null);
   const [serverError, setServerError] = useState('');
-  const logoInput = useRef(null);
 
   useEffect(() => save('lm.data', { ...data, date: '' }), [data]);
   useEffect(() => save('lm.job', job), [job]);
+  useEffect(() => save('lm.by', by), [by]);
+  useEffect(() => save('lm.stamp', stamp), [stamp]);
 
   const sheets = useMemo(() => buildSheets(data, job), [data, job]);
 
@@ -130,6 +146,7 @@ export default function App() {
     fetchFormulas().then((list) => { setFormulas(list); setServerError(''); })
       .catch(() => setServerError(t('err.offline')));
     fetchLogo().then(setLogo).catch(() => {});
+    fetchHistory().then((h) => { setHistory(h); setHistoryError(''); }).catch(() => setHistoryError(t('hist.error')));
   };
   // La fecha es la de hoy salvo que se haya escrito otra a mano.
   const dateEdited = useRef(false);
@@ -181,18 +198,65 @@ export default function App() {
   const removeLogo = async () => {
     try { await deleteLogo(); setLogo(null); setStatus(t('status.logoRemoved'), 'success'); } catch (err) { setStatus(err.message, 'error'); }
   };
-  const onLogo = (e) => {
-    const file = e.target.files?.[0];
-    if (file) changeLogo(file);
-    e.target.value = '';
-  };
 
-  // Al imprimir, si la fórmula es nueva se agrega sola a la lista compartida.
-  const printSet = async () => {
+  // Avisos previos a imprimir; si hay alguno se pide confirmar, si no se imprime directo.
+  const checks = collectChecks({ data, job, history, t });
+  const idUse = findIdUse(history, data);
+  const breakdown = t('breakdown', {
+    pre: sheets.filter((x) => x.key.startsWith('pre')).length,
+    mis: sheets.filter((x) => x.key.startsWith('mis')).length,
+    ref: sheets.filter((x) => x.key.startsWith('ref')).length,
+  });
+  const copies = job.copies || 1;
+  const totalSheets = sheets.length * copies;
+
+  const printSet = () => (checks.length ? setConfirmChecks(checks) : doPrint());
+
+  // Al imprimir: la fórmula nueva se agrega a la lista, la impresión queda en el historial y se abre el diálogo.
+  const doPrint = async () => {
+    setConfirmChecks(null);
     if (trimmedFormula && norm(data.name) && !saved) {
       try { setFormulas(await writeFormulas('add', [entryFromForm()])); } catch { /* imprimir igual */ }
     }
+    const entry = {
+      formula: trimmedFormula, name: norm(data.name), batch: norm(data.batch), batchTotal: norm(data.batchTotal),
+      batches: batchesText(data), po: norm(data.po), date: norm(data.date), ile: norm(data.ile), identifier: stripId(data.identifier),
+      pallets: job.pallets, withMissing: job.withMissing, withRefer: job.withRefer,
+      missing: job.withMissing ? data.missing : '', refer: job.withRefer ? data.refer : '', by: norm(by),
+    };
+    setHistory((h) => [{ ...entry, ts: Date.now() }, ...h]);
+    addHistory(entry).catch(() => {}); // si falla, no impide imprimir
+    setPrintedAt(Date.now());
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); // deja pintar la hora antes de abrir el diálogo
     window.print();
+  };
+
+  // --- Deshacer: "Nuevo", "Siguiente batch" y "Cargar" guardan una copia para poder volver
+  const showToast = (text, snapshot) => {
+    clearTimeout(toastTimer.current);
+    setToast({ text, undo: snapshot });
+    toastTimer.current = setTimeout(() => setToast(null), 7000);
+  };
+  const snapshot = () => ({ data, job, edited: dateEdited.current });
+  const restore = (snap) => {
+    setData(snap.data);
+    setJob(snap.job);
+    dateEdited.current = snap.edited;
+    setToast(null);
+  };
+
+  // Cargar un batch del historial para reimprimirlo
+  const loadFromHistory = (h) => {
+    const snap = snapshot();
+    const auto = h.batch && h.batchTotal && h.batches === `${h.batch}/${h.batchTotal}`;
+    dateEdited.current = true;
+    setData({
+      ...EMPTY, formula: h.formula, name: h.name, batch: h.batch, batchTotal: h.batchTotal, batchesCustom: !auto, batches: auto ? '' : h.batches,
+      po: h.po, date: h.date || todayStr(), ile: h.ile || 'ILE', identifier: h.identifier, missing: h.missing || '', refer: h.refer || '',
+    });
+    setJob((j) => ({ ...j, pallets: h.pallets || 1, withMissing: Boolean(h.withMissing), withRefer: Boolean(h.withRefer) }));
+    setShowHistory(false);
+    showToast(t('toast.loaded', { f: h.formula, b: h.batches || h.batch || '—' }), snap);
   };
 
   // Pasar a texto manual parte del valor automático ("3/12") para poder editarlo; volver a automático lo descarta.
@@ -209,16 +273,19 @@ export default function App() {
 
   const nextBatch = () => {
     if (atLastBatch) return;
-    setData((d) => {
-      const n = /^\d+$/.test(norm(d.batch)) ? String(parseInt(d.batch, 10) + 1) : d.batch;
-      return { ...d, batch: n, identifier: '', missing: '', refer: '' };
-    });
+    const snap = snapshot();
+    const n = /^\d+$/.test(norm(data.batch)) ? String(parseInt(data.batch, 10) + 1) : data.batch;
+    setData((d) => ({ ...d, batch: n, identifier: '', missing: '', refer: '' }));
+    showToast(t('toast.next', { b: n || '—' }), snap);
     setJob((j) => ({ ...j, withMissing: false, withRefer: false }));
     idInput.current?.focus(); // lo siguiente que hay que escribir es el ID
   };
 
-  const newBatch = () =>
+  const newBatch = () => {
+    const snap = snapshot();
     setData((d) => ({ ...EMPTY, date: dateEdited.current ? d.date : todayStr(), ile: d.ile }));
+    showToast(t('toast.cleared'), snap);
+  };
 
   const required = {
     formula: 'Formula', name: 'Name', batch: 'Batch#', po: 'P.O.#', batches: 'Batches', identifier: 'ID',
@@ -270,10 +337,19 @@ export default function App() {
                 </button>
               ))}
             </div>
-            <button onClick={newBatch} title={t('newTitle')} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-white/15 hover:bg-white/25 text-xs font-bold">
+          </header>
+
+          <nav className="flex items-center gap-1.5 border-b border-slate-200 bg-slate-50 px-4 py-2" aria-label="Acciones">
+            <button onClick={newBatch} title={t('newTitle')} className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">
               <Eraser size={14} /> {t('new')}
             </button>
-          </header>
+            <button onClick={() => { setShowHistory(true); refresh(); }} className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">
+              <Clock size={14} /> {t('hist.btn')}
+            </button>
+            <button onClick={() => setShowSettings(true)} className="ml-auto flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">
+              <Cog size={14} /> {t('settings.btn')}
+            </button>
+          </nav>
 
           <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5" onKeyDown={onEnterNext}>
             <Section title={t('sec.batch')} action={
@@ -354,6 +430,15 @@ export default function App() {
                     </div>
                   </Labeled>
                 </div>
+                {(idUse.clash || idUse.again) && (
+                  <p role={idUse.clash ? 'alert' : 'status'} className={`-mt-1.5 flex items-start gap-1.5 rounded-md border-l-4 px-3 py-2 text-xs font-bold ${
+                    idUse.clash ? 'border-rose-600 bg-rose-50 text-rose-900' : 'border-amber-500 bg-amber-50 text-amber-900'}`}>
+                    {idUse.clash ? <AlertTriangle size={14} className="mt-px shrink-0 text-rose-600" /> : <Info size={14} className="mt-px shrink-0 text-amber-600" />}
+                    {idUse.clash
+                      ? t('id.clash', { id: `ID-${stripId(data.identifier)}`, f: idUse.clash.formula, b: idUse.clash.batch || '—', d: fmtStamp(idUse.clash.ts).d })
+                      : t('id.again', { d: fmtStamp(idUse.again.ts).d })}
+                  </p>
+                )}
                 <Labeled label={t('lbl.ile')}>{text('ile', 'ILE')}</Labeled>
               </div>
             </Section>
@@ -400,28 +485,6 @@ export default function App() {
                 </div>
               )}
             </Section>
-
-            <Section title={t('sec.formulas')}>
-              <button onClick={() => setShowFormulas(true)} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-md border border-slate-300 hover:border-violet-400 hover:bg-violet-50 text-sm font-semibold text-slate-700">
-                <ListChecks size={18} />
-                <span className="flex-1 text-left">{t('manage')}</span>
-                <span className="text-xs text-slate-500">{formulas.length}</span>
-              </button>
-            </Section>
-
-            <Section title={t('sec.logo')}>
-              <input ref={logoInput} type="file" accept="image/*" onChange={onLogo} className="hidden" />
-              <div className="flex gap-2">
-                <button onClick={() => logoInput.current?.click()} className="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-100 hover:bg-slate-200 text-sm font-semibold">
-                  <ImagePlus size={16} /> {logo ? t('logo.change') : t('logo.upload')}
-                </button>
-                {logo && (
-                  <button onClick={removeLogo} className="px-3 py-2 rounded-md text-sm font-semibold text-slate-500 hover:bg-slate-100">
-                    {t('remove')}
-                  </button>
-                )}
-              </div>
-            </Section>
           </div>
 
           <footer className="p-5 border-t border-slate-200 bg-slate-50 flex flex-col gap-3">
@@ -433,39 +496,75 @@ export default function App() {
             {emptyFields.length > 0 && (
               <p className="text-xs font-semibold text-amber-700">{t('empty.prefix', { list: emptyFields.join(', ') })}</p>
             )}
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+              <span className="mr-auto">{t('copies')}</span>
+              <button onClick={() => setJob((j) => ({ ...j, copies: Math.max(1, copies - 1) }))} aria-label="−" className="rounded-md border border-slate-300 bg-white p-1.5 hover:bg-slate-100"><Minus size={12} /></button>
+              <span className="w-5 text-center text-sm font-extrabold text-slate-900">{copies}</span>
+              <button onClick={() => setJob((j) => ({ ...j, copies: Math.min(3, copies + 1) }))} aria-label="+" className="rounded-md border border-slate-300 bg-white p-1.5 hover:bg-slate-100"><Plus size={12} /></button>
+            </div>
             <button onClick={() => printSet()} className="w-full bg-violet-600 hover:bg-violet-700 text-white font-extrabold py-3.5 rounded-lg flex items-center justify-center gap-2 shadow-md transition-colors">
-              <Printer size={20} /> {sheets.length === 1 ? t('print.one') : t('print.many', { n: sheets.length })}
+              <Printer size={20} /> {totalSheets === 1 ? t('print.one') : t('print.many', { n: totalSheets })}
             </button>
             <p className="text-center text-[11px] font-semibold text-slate-400">{t('credit')}</p>
           </footer>
         </aside>
 
         {/* VISTA PREVIA */}
-        <main ref={wrapRef} className="flex-1 overflow-auto p-8 flex flex-col items-center gap-8">
-          {sheets.map(({ key, label, Comp, data: d }) => (
-            <div key={key} className="shrink-0">
-              <p className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">{t(label[0], label[1])}</p>
-              <div style={{ width: LABEL_W * scale, height: LABEL_H * scale }} className="shadow-xl bg-white">
-                <div style={{ width: LABEL_W, height: LABEL_H, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
-                  <Comp data={d} logo={logo} onLogoClick={() => logoInput.current?.click()} />
+        <main ref={wrapRef} className="flex-1 overflow-auto">
+          {sheets.length > 1 && (
+            <div className="sticky top-0 z-10 flex gap-1.5 overflow-x-auto border-b border-slate-200 bg-slate-100/95 px-8 py-2 backdrop-blur" role="navigation" aria-label="Hojas">
+              {sheets.map(({ key, short }) => (
+                <button key={key} onClick={() => document.getElementById(`sheet-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                  className="shrink-0 rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-600 hover:border-violet-400 hover:text-violet-700">
+                  {t(short[0], short[1])}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex flex-col items-center gap-8 p-8">
+            {sheets.map(({ key, label, Comp, data: d }) => (
+              <div key={key} id={`sheet-${key}`} className="shrink-0 scroll-mt-16">
+                <p className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">{t(label[0], label[1])}</p>
+                <div style={{ width: LABEL_W * scale, height: LABEL_H * scale }} className="shadow-xl bg-white">
+                  <div style={{ width: LABEL_W, height: LABEL_H, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+                    <Comp data={d} logo={logo} onLogoClick={() => setShowSettings(true)} />
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </main>
       </div>
 
+      {showSettings && (
+        <SettingsModal
+          formulasCount={formulas.length} onOpenFormulas={() => { setShowSettings(false); setShowFormulas(true); }}
+          logo={logo} onLogoFile={changeLogo} onRemoveLogo={removeLogo}
+          by={by} onBy={setBy} stamp={stamp} onStamp={setStamp} onClose={() => setShowSettings(false)}
+        />
+      )}
       {showFormulas && (
         <FormulaManager formulas={formulas} onSave={saveEntry} onDelete={deleteEntry} onImport={importEntries} onClose={() => setShowFormulas(false)} />
       )}
+      {showHistory && <HistoryModal history={history} error={historyError} onLoad={loadFromHistory} onClose={() => setShowHistory(false)} />}
+      {confirmChecks && <PrintConfirm checks={confirmChecks} total={totalSheets} breakdown={breakdown} onFix={() => setConfirmChecks(null)} onPrint={doPrint} />}
+      <div className="app-root"><Toast toast={toast} onUndo={() => toast?.undo && restore(toast.undo)} /></div>
 
-      {/* SALIDA DE IMPRESIÓN: una hoja Letter horizontal por etiqueta */}
+      {/* SALIDA DE IMPRESIÓN: una hoja Letter horizontal por etiqueta (y por copia) */}
       <div className="print-root">
-        {sheets.map(({ key, Comp, data: d }) => (
-          <div key={key} className="sheet">
-            <Comp data={d} logo={logo} />
-          </div>
-        ))}
+        {Array.from({ length: copies }).flatMap((_, c) =>
+          sheets.map(({ key, Comp, data: d }) => (
+            <div key={`${c}-${key}`} className="sheet">
+              <div style={{ position: 'relative', width: LABEL_W, height: LABEL_H }}>
+                <Comp data={d} logo={logo} />
+                {stamp && printedAt && (() => {
+                  const { d: day, h } = fmtStamp(printedAt);
+                  return <div className="print-stamp">{t('stamp', { d: day, h })}{by ? ` · ${by}` : ''}</div>;
+                })()}
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </>
   );

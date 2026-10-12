@@ -93,3 +93,12 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .lm-slide, .lm-bar, .lm-flash, .lm-shake { animation: none; }
 }
+
+/* Fecha y hora de impresión (opcional): línea pequeña al pie de cada hoja */
+.print-stamp {
+  position: absolute;
+  bottom: 8px;
+  right: 56px;
+  font-size: 12px;
+  color: #444;
+}

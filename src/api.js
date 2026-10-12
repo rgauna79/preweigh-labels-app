@@ -96,3 +96,16 @@ export function shrinkImage(file, maxW = 600) {
     img.src = URL.createObjectURL(file);
   });
 }
+
+/** Últimas impresiones de todos los usuarios (más recientes primero). */
+export async function fetchHistory() {
+  const res = await call('history', { cache: 'no-store' });
+  if (!res.ok) throw new Error(tr('err.server'));
+  return res.json();
+}
+
+/** Registra una impresión. No pide PIN. Si falla no debe impedir imprimir, por eso el que llama lo ignora. */
+export async function addHistory(entry) {
+  const res = await call('history', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entry }) });
+  if (!res.ok) throw new Error(tr('err.server'));
+}

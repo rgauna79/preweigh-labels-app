@@ -344,14 +344,14 @@ export function buildSheets(rawData, { pallets, withMissing, withRefer }) {
   const n = Math.max(1, pallets);
   for (let i = 1; i <= n; i++) {
     const d = { ...data, palletNum: String(i), palletTotal: String(n) };
-    sheets.push({ key: `pre${i}`, label: ['sheet.pre', { i, n }], Comp: PreweighTag, data: d });
+    sheets.push({ key: `pre${i}`, label: ['sheet.pre', { i, n }], short: ['chip.pre', { i }], Comp: PreweighTag, data: d });
     if (withMissing) {
-      sheets.push({ key: `mis${i}`, label: ['sheet.mis', { i, n }], Comp: MissingTag, data: d });
+      sheets.push({ key: `mis${i}`, label: ['sheet.mis', { i, n }], short: ['chip.mis', { i }], Comp: MissingTag, data: d });
     }
   }
   if (withRefer) {
-    sheets.push({ key: 'ref1', label: ['sheet.ref1'], Comp: ReferPage1, data });
-    sheets.push({ key: 'ref2', label: ['sheet.ref2'], Comp: ReferPage2, data });
+    sheets.push({ key: 'ref1', label: ['sheet.ref1'], short: ['chip.ref1'], Comp: ReferPage1, data });
+    sheets.push({ key: 'ref2', label: ['sheet.ref2'], short: ['chip.ref2'], Comp: ReferPage2, data });
   }
   return sheets;
 }
