@@ -198,12 +198,14 @@ function IdentityStrip({ data, height = 92 }) {
   );
 }
 
-/** Missing: hoja temporal que se desecha, así que lleva solo el pallet (sin ILE ni ID). */
-function PalletBar({ data, height = 72 }) {
+/** Missing: hoja temporal que se desecha, así que lleva solo el pallet (sin ILE ni ID). Mismo recuadro que el del tag principal, a la derecha. */
+function PalletBadge({ data, height = 70 }) {
   return (
-    <div className="col-span-4 flex items-center justify-center gap-5 border-[3px] border-black" style={{ height }}>
-      <span className="text-[24px] font-bold leading-none tracking-[0.18em]">PALLET</span>
-      <span className="text-[52px] font-black leading-none">{palletText(data)}</span>
+    <div className="col-span-4 flex justify-end">
+      <div className="flex flex-col items-center justify-center border-[3px] border-black px-6" style={{ height, minWidth: 250 }}>
+        <span className="text-[18px] font-bold leading-none tracking-[0.18em]">PALLET</span>
+        <span className="text-[42px] font-black leading-none">{palletText(data)}</span>
+      </div>
     </div>
   );
 }
@@ -293,7 +295,7 @@ export function MissingTag({ data, logo, onLogoClick }) {
         <Field label="P.O.#" value={data.po} max={MISSING_FIELD_MAX} lines={poLines} />
         <Field label="Batches" value={data.batches} max={MISSING_FIELD_MAX} />
         {items.length > 0 && <MissingList items={items} />}
-        <PalletBar data={data} />
+        <PalletBadge data={data} />
       </TagGrid>
     </div>
   );
