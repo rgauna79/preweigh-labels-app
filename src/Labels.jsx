@@ -198,18 +198,6 @@ function IdentityStrip({ data, height = 92 }) {
   );
 }
 
-/** Missing: hoja temporal que se desecha, así que lleva solo el pallet (sin ILE ni ID). Mismo recuadro que el del tag principal, a la derecha. */
-function PalletBadge({ data, height = 70 }) {
-  return (
-    <div className="col-span-4 flex justify-end">
-      <div className="flex flex-col items-center justify-center border-[3px] border-black px-6" style={{ height, minWidth: 250 }}>
-        <span className="text-[18px] font-bold leading-none tracking-[0.18em]">PALLET</span>
-        <span className="text-[42px] font-black leading-none">{palletText(data)}</span>
-      </div>
-    </div>
-  );
-}
-
 /** "ID-" va siempre delante: el usuario solo escribe el código (G9FB71). */
 export const stripId = (v) => String(v ?? '').trim().replace(/^ID[-\s]*/i, '').toUpperCase();
 export const formatId = (v) => (stripId(v) ? `ID-${stripId(v)}` : '');
@@ -294,8 +282,9 @@ export function MissingTag({ data, logo, onLogoClick }) {
         <Field label="Batch#" value={data.batch} max={MISSING_FIELD_MAX} />
         <Field label="P.O.#" value={data.po} max={MISSING_FIELD_MAX} lines={poLines} />
         <Field label="Batches" value={data.batches} max={MISSING_FIELD_MAX} />
+        {/* Missing es una hoja temporal: solo lleva el pallet (sin ILE ni ID), como una fila más */}
+        <Field label="Pallet" value={palletText(data)} max={MISSING_FIELD_MAX} />
         {items.length > 0 && <MissingList items={items} />}
-        <PalletBadge data={data} />
       </TagGrid>
     </div>
   );
