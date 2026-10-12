@@ -180,7 +180,7 @@ function LogoCorner({ logo, onLogoClick }) {
 /** "1 of 3": número de este pallet y total de pallets del batch. */
 const palletText = (d) => `${d.palletNum} of ${d.palletTotal}`;
 
-/** Franja inferior: ILE | ID | PALLET. Igual en el tag principal y en el Missing para que se reconozcan como pareja. */
+/** Franja inferior del tag principal: ILE | ID | PALLET. */
 function IdentityStrip({ data, height = 92 }) {
   return (
     <div className="col-span-4 grid gap-4" style={{ gridTemplateColumns: '0.8fr 1.5fr 1.15fr', height }}>
@@ -194,6 +194,16 @@ function IdentityStrip({ data, height = 92 }) {
         <span className="text-[20px] font-bold leading-none tracking-[0.18em]">PALLET</span>
         <FitText text={palletText(data)} max={50} className="text-center font-black" />
       </div>
+    </div>
+  );
+}
+
+/** Missing: hoja temporal que se desecha, así que lleva solo el pallet (sin ILE ni ID). */
+function PalletBar({ data, height = 72 }) {
+  return (
+    <div className="col-span-4 flex items-center justify-center gap-5 border-[3px] border-black" style={{ height }}>
+      <span className="text-[24px] font-bold leading-none tracking-[0.18em]">PALLET</span>
+      <span className="text-[52px] font-black leading-none">{palletText(data)}</span>
     </div>
   );
 }
@@ -283,7 +293,7 @@ export function MissingTag({ data, logo, onLogoClick }) {
         <Field label="P.O.#" value={data.po} max={MISSING_FIELD_MAX} lines={poLines} />
         <Field label="Batches" value={data.batches} max={MISSING_FIELD_MAX} />
         {items.length > 0 && <MissingList items={items} />}
-        <IdentityStrip data={data} height={84} />
+        <PalletBar data={data} />
       </TagGrid>
     </div>
   );
