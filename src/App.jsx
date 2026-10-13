@@ -263,7 +263,7 @@ export default function App() {
   const toggleCustomBatches = () =>
     setData((d) => (d.batchesCustom ? { ...d, batchesCustom: false } : { ...d, batchesCustom: true, batches: batchesText(d) }));
 
-  // Siguiente batch de la misma fórmula: batch +1; se conserva todo lo que se repite y se vacía lo que cambia.
+  // Siguiente batch de la misma fórmula: batch +1; se conserva todo lo que se repite y solo se vacía el ID.
   const idInput = useRef(null);
   // Batch y total numéricos: el batch nunca puede ser mayor que el total (no existe el 4/2).
   const isNum = (v) => /^\d+$/.test(norm(v));
@@ -275,9 +275,9 @@ export default function App() {
     if (atLastBatch) return;
     const snap = snapshot();
     const n = /^\d+$/.test(norm(data.batch)) ? String(parseInt(data.batch, 10) + 1) : data.batch;
-    setData((d) => ({ ...d, batch: n, identifier: '', missing: '', refer: '' }));
+    // Solo cambia el ID: los faltantes y refrigerados se repiten entre batches de la misma fórmula y se conservan
+    setData((d) => ({ ...d, batch: n, identifier: '' }));
     showToast(t('toast.next', { b: n || '—' }), snap);
-    setJob((j) => ({ ...j, withMissing: false, withRefer: false }));
     idInput.current?.focus(); // lo siguiente que hay que escribir es el ID
   };
 
