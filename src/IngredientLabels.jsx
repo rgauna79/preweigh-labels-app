@@ -33,18 +33,25 @@ function parsePaste(text, startSeq = 10) {
     .map((c, i) => newRow(startSeq + i * 10, c[0] || '', c.slice(1).join(' ')));
 }
 
+// Datos de la página de tags (Preweigh): la fórmula y el batch viajan a esta pantalla
+const linkedData = () => load('lm.data', {});
+const isNum = (v) => /^\d{1,3}$/.test(norm(v));
+
 export default function IngredientLabels({ onBack }) {
   const { lang, setLang, t } = useLang();
   const [formulas, setFormulas] = useState([]);
   const [index, setIndex] = useState([]); // fórmulas que ya tienen lista de ingredientes
-  const [formula, setFormula] = useState(() => load('lm.ing.formula', ''));
+  const [linked] = useState(linkedData);
+  const [formula, setFormula] = useState(() => norm(linked.formula) || load('lm.ing.formula', ''));
   const [name, setName] = useState('');
   const [rows, setRows] = useState([]);
   const [saved, setSaved] = useState(null); // copia guardada (para saber si hay cambios), null = fórmula sin lista
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(0);
-  const [batch, setBatch] = useState(() => load('lm.ing.batch', ''));
+  const [batchFrom, setBatchFrom] = useState(() => (isNum(linked.batch) ? norm(linked.batch) : ''));
+  const [batchTo, setBatchTo] = useState(() => (isNum(linked.batch) ? norm(linked.batch) : ''));
+  const [preparing, setPreparing] = useState(false);
   const [copies, setCopies] = useState(1);
   const [offset, setOffset] = useState(() => ({ x: 2, y: 1, dark: 0, ...load('lm.ing.offset', {}) })); // calibración en mm
   const [showPaste, setShowPaste] = useState(false);
@@ -175,25 +182,37 @@ export default function IngredientLabels({ onBack }) {
 
   // --- Impresión: una página de 4 x 2 in por etiqueta
   const selected = rows.filter((r) => r.checked && (norm(r.part) || norm(r.desc)));
-  const total = selected.length * copies;
+  // Batches a imprimir: de "desde" a "hasta" (si "hasta" está vacío, solo uno). Sin número = sin batch en la etiqueta.
+  const batchList = (() => {
+    if (!isNum(batchFrom)) return [''];
+    const a = parseInt(batchFrom, 10);
+    const b = isNum(batchTo) ? parseInt(batchTo, 10) : a;
+    const lo = Math.min(a, b);
+    const hi = Math.min(Math.max(a, b), lo + 99);
+    return Array.from({ length: hi - lo + 1 }, (_, i) => String(lo + i));
+  })();
+  const total = selected.length * batchList.length * copies;
+  const linkedTotal = isNum(linked.batchTotal) ? parseInt(linked.batchTotal, 10) : 0;
 
   const printDotTest = () => setPrintJob({ images: [testBitmap()], copies: 1 });
 
   const doPrint = async (list, test = false) => {
     setStatus('');
+    if (!test && total > 60 && !window.confirm(t('ing.confirmMany', { n: total }))) return;
+    setPreparing(true);
     try {
       const mmToDots = (v) => (mm(v) * DPI) / 25.4;
-      const images = await Promise.all(
-        list.map((r) =>
-          labelBitmap(
-            { name: test ? 'FORMULA NAME' : title, part: r.part, seq: r.seq, desc: r.desc, batch: test ? '1' : norm(batch) },
-            { threshold: THRESHOLDS[offset.dark] ?? THRESHOLDS[2], dilY: DIL_Y[offset.dark] ?? 1, dilX: DIL_X[offset.dark] ?? 0, dx: mmToDots(offset.x), dy: mmToDots(offset.y) }
-          )
-        )
-      );
+      const opts = { threshold: THRESHOLDS[offset.dark] ?? THRESHOLDS[2], dilY: DIL_Y[offset.dark] ?? 1, dilX: DIL_X[offset.dark] ?? 0, dx: mmToDots(offset.x), dy: mmToDots(offset.y) };
+      const jobs = test ? list.map((r) => ({ r, b: '1' })) : batchList.flatMap((b) => list.map((r) => ({ r, b })));
+      const images = [];
+      for (const { r, b } of jobs) { // de a una: cada bitmap usa un lienzo grande
+        images.push(await labelBitmap({ name: test ? 'FORMULA NAME' : title, part: r.part, seq: r.seq, desc: r.desc, batch: b }, opts));
+      }
       setPrintJob({ images, copies: test ? 1 : copies });
     } catch (e) {
       setStatus(e.message);
+    } finally {
+      setPreparing(false);
     }
   };
 
@@ -228,7 +247,7 @@ export default function IngredientLabels({ onBack }) {
   const sample = { seq: '10', part: 'ABC-12345', desc: 'SAMPLE INGREDIENT NAME' };
 
   const labelFor = (r) => (
-    <IngredientLabel name={title || 'FORMULA NAME'} part={r.part} seq={r.seq} desc={r.desc} batch={norm(batch)} />
+    <IngredientLabel name={title || 'FORMULA NAME'} part={r.part} seq={r.seq} desc={r.desc} batch={batchList[0]} />
   );
 
   return (
@@ -355,19 +374,38 @@ export default function IngredientLabels({ onBack }) {
 
             <div className="w-full max-w-[640px] space-y-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
               <div className="flex items-center gap-3">
-                <label className="text-xs font-bold text-slate-600">{t('lbl.batch')}</label>
-                <input value={batch} maxLength={10} placeholder="1" className={`${inputCls} !w-24`}
-                  onChange={(e) => { setBatch(e.target.value); save('lm.ing.batch', e.target.value); }} />
-                <label className="ml-2 text-xs font-bold text-slate-600">{t('ing.copies')}</label>
+                <label className="text-xs font-bold text-slate-600">{t('ing.copies')}</label>
                 <input type="number" min={1} max={20} value={copies} className={`${inputCls} !w-16`}
                   onChange={(e) => setCopies(Math.min(20, Math.max(1, parseInt(e.target.value, 10) || 1)))} />
                 <div className="flex-1" />
                 <button onClick={() => setRows((rs) => rs.map((r) => ({ ...r, checked: true })))} className="text-xs font-bold text-violet-700 hover:underline">{t('ing.all')}</button>
                 <button onClick={() => setRows((rs) => rs.map((r) => ({ ...r, checked: false })))} className="text-xs font-bold text-violet-700 hover:underline">{t('ing.none')}</button>
               </div>
-              <button onClick={() => doPrint(selected)} disabled={!total || dirty && !!validate()}
+              <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+                <label className="text-xs font-bold text-slate-600">{t('ing.batchFrom')}</label>
+                <input value={batchFrom} inputMode="numeric" maxLength={3} placeholder="1" className={`${inputCls} !w-16`}
+                  onChange={(e) => { const v = e.target.value.replace(/\D/g, ''); setBatchFrom(v); if (!batchTo || batchTo === batchFrom) setBatchTo(v); }} />
+                <label className="text-xs font-bold text-slate-600">{t('ing.batchTo')}</label>
+                <input value={batchTo} inputMode="numeric" maxLength={3} placeholder={batchFrom || '1'} className={`${inputCls} !w-16`}
+                  onChange={(e) => setBatchTo(e.target.value.replace(/\D/g, ''))} />
+                {linkedTotal > 1 && (
+                  <button onClick={() => { setBatchFrom('1'); setBatchTo(String(linkedTotal)); }} className="text-xs font-bold text-violet-700 hover:underline">
+                    {t('ing.batchAll', { n: linkedTotal })}
+                  </button>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500">
+                {norm(linked.formula) && norm(linked.formula).toLowerCase() === norm(formula).toLowerCase() && isNum(linked.batch)
+                  ? t('ing.linked', { f: linked.formula, b: linked.batch, n: linkedTotal || '?' }) + ' '
+                  : ''}
+                {t('ing.batchHint')}
+              </p>
+              <button onClick={() => doPrint(selected)} disabled={!total || preparing || (dirty && !!validate())}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 py-3 text-sm font-extrabold text-white hover:bg-violet-700 disabled:opacity-40">
-                <Printer size={18} /> {total === 1 ? t('ing.printOne') : t('ing.printMany', { n: total })}
+                <Printer size={18} />
+                {preparing ? t('ing.preparing') : batchList.length > 1
+                  ? t('ing.printRange', { n: total, a: batchList[0], b: batchList[batchList.length - 1] })
+                  : total === 1 ? t('ing.printOne') : t('ing.printMany', { n: total })}
               </button>
               {dirty && rows.length > 0 && <p className="text-center text-[11px] font-semibold text-amber-700">{t('ing.unsaved')}</p>}
             </div>
