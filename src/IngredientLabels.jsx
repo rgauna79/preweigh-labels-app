@@ -51,6 +51,7 @@ export default function IngredientLabels({ onBack }) {
   const [preview, setPreview] = useState(0);
   const [batchFrom, setBatchFrom] = useState(() => (isNum(linked.batch) ? norm(linked.batch) : ''));
   const [batchTo, setBatchTo] = useState(() => (isNum(linked.batch) ? norm(linked.batch) : ''));
+  const [showPart, setShowPart] = useState(() => load('lm.ing.showPart', true)); // imprimir el número de parte en Item Code
   const [preparing, setPreparing] = useState(false);
   const [copies, setCopies] = useState(1);
   const [offset, setOffset] = useState(() => ({ x: 2, y: 1, dark: 0, ...load('lm.ing.offset', {}) })); // calibración en mm
@@ -206,7 +207,7 @@ export default function IngredientLabels({ onBack }) {
       const jobs = test ? list.map((r) => ({ r, b: '1' })) : batchList.flatMap((b) => list.map((r) => ({ r, b })));
       const images = [];
       for (const { r, b } of jobs) { // de a una: cada bitmap usa un lienzo grande
-        images.push(await labelBitmap({ name: test ? 'FORMULA NAME' : title, part: r.part, seq: r.seq, desc: r.desc, batch: b }, opts));
+        images.push(await labelBitmap({ name: test ? 'FORMULA NAME' : title, part: showPart ? r.part : '', seq: r.seq, desc: r.desc, batch: b }, opts));
       }
       setPrintJob({ images, copies: test ? 1 : copies });
     } catch (e) {
@@ -247,7 +248,7 @@ export default function IngredientLabels({ onBack }) {
   const sample = { seq: '10', part: 'ABC-12345', desc: 'SAMPLE INGREDIENT NAME' };
 
   const labelFor = (r) => (
-    <IngredientLabel name={title || 'FORMULA NAME'} part={r.part} seq={r.seq} desc={r.desc} batch={batchList[0]} />
+    <IngredientLabel name={title || 'FORMULA NAME'} part={showPart ? r.part : ''} seq={r.seq} desc={r.desc} batch={batchList[0]} />
   );
 
   return (
@@ -381,7 +382,11 @@ export default function IngredientLabels({ onBack }) {
                 <button onClick={() => setRows((rs) => rs.map((r) => ({ ...r, checked: true })))} className="text-xs font-bold text-violet-700 hover:underline">{t('ing.all')}</button>
                 <button onClick={() => setRows((rs) => rs.map((r) => ({ ...r, checked: false })))} className="text-xs font-bold text-violet-700 hover:underline">{t('ing.none')}</button>
               </div>
-              <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+              <label className="flex cursor-pointer items-center gap-2 border-t border-slate-100 pt-3 text-xs font-bold text-slate-600">
+                <input type="checkbox" checked={showPart} onChange={(e) => { setShowPart(e.target.checked); save('lm.ing.showPart', e.target.checked); }} />
+                {t('ing.showPart')}
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
                 <label className="text-xs font-bold text-slate-600">{t('ing.batchFrom')}</label>
                 <input value={batchFrom} inputMode="numeric" maxLength={3} placeholder="1" className={`${inputCls} !w-16`}
                   onChange={(e) => { const v = e.target.value.replace(/\D/g, ''); setBatchFrom(v); if (!batchTo || batchTo === batchFrom) setBatchTo(v); }} />
