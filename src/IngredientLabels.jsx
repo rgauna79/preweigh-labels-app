@@ -46,7 +46,7 @@ export default function IngredientLabels({ onBack }) {
   const [preview, setPreview] = useState(0);
   const [batch, setBatch] = useState(() => load('lm.ing.batch', ''));
   const [copies, setCopies] = useState(1);
-  const [offset, setOffset] = useState(() => ({ x: 0, y: 0, dark: 2, ...load('lm.ing.offset', {}) })); // calibración en mm
+  const [offset, setOffset] = useState(() => ({ x: 2, y: 1, dark: 0, ...load('lm.ing.offset', {}) })); // calibración en mm
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState('');
   const [toast, setToast] = useState(null);
