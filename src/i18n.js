@@ -80,7 +80,7 @@ const STRINGS = {
     'ing.badSeq': 'Every Seq # must be a whole number.', 'ing.dupSeq': 'Two ingredients have the same Seq #.',
     'ing.preview': 'Preview', 'ing.copies': 'Copies of each label', 'ing.all': 'Select all', 'ing.none': 'Select none', 'ing.printOne': 'Print 1 label', 'ing.printMany': 'Print {n} labels',
     'ing.calib': 'Printer alignment', 'ing.calibHelp': 'If the print is shifted on the label, move it here (millimetres, positive = right / down). Set paper to 4 × 2 in, scale 100% and margins none in the print dialog.',
-    'ing.offX': 'Horizontal (mm)', 'ing.offY': 'Vertical (mm)', 'ing.test': 'Print test label',
+    'ing.dark': 'Print weight', 'ing.dark0': 'Normal', 'ing.dark1': 'Dark', 'ing.dark2': 'Darker', 'ing.dark3': 'Maximum', 'ing.darkHelp': 'Also raise Darkness in the Datamax driver (Printing Preferences → Options) and lower the speed.', 'ing.offX': 'Horizontal (mm)', 'ing.offY': 'Vertical (mm)', 'ing.test': 'Print test label',
     'err.bad_seq': 'Every Seq # must be a whole number.', 'err.dup_seq': 'Two ingredients have the same Seq #.', 'err.exists': 'This formula already has a list. Editing it needs the PIN.',
   },
   es: {
@@ -159,7 +159,7 @@ const STRINGS = {
     'ing.badSeq': 'Cada Seq # debe ser un número entero.', 'ing.dupSeq': 'Dos ingredientes tienen el mismo Seq #.',
     'ing.preview': 'Vista previa', 'ing.copies': 'Copias de cada etiqueta', 'ing.all': 'Marcar todas', 'ing.none': 'Quitar todas', 'ing.printOne': 'Imprimir 1 etiqueta', 'ing.printMany': 'Imprimir {n} etiquetas',
     'ing.calib': 'Alineación de la impresora', 'ing.calibHelp': 'Si la impresión sale corrida en la etiqueta, muévela aquí (milímetros, positivo = derecha / abajo). En el diálogo de impresión usa papel 4 × 2 in, escala 100% y sin márgenes.',
-    'ing.offX': 'Horizontal (mm)', 'ing.offY': 'Vertical (mm)', 'ing.test': 'Imprimir etiqueta de prueba',
+    'ing.dark': 'Grosor de impresión', 'ing.dark0': 'Normal', 'ing.dark1': 'Oscuro', 'ing.dark2': 'Más oscuro', 'ing.dark3': 'Máximo', 'ing.darkHelp': 'Sube también Darkness en el driver de la Datamax (Preferencias de impresión → Opciones) y baja la velocidad.', 'ing.offX': 'Horizontal (mm)', 'ing.offY': 'Vertical (mm)', 'ing.test': 'Imprimir etiqueta de prueba',
     'err.bad_seq': 'Cada Seq # debe ser un número entero.', 'err.dup_seq': 'Dos ingredientes tienen el mismo Seq #.', 'err.exists': 'Esta fórmula ya tiene lista. Editarla requiere el PIN.',
   },
 };

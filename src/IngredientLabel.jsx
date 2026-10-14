@@ -1,4 +1,8 @@
-import React from 'react';
+import React, { createContext, useContext } from 'react';
+
+// Grosor extra (unidades del SVG, 1 punto de la impresora = 1.23) que se suma al contorno de letras y líneas.
+// Compensa que el navegador imprime los bordes suavizados (grises) y el driver los vuelve puntos tenues.
+const Boost = createContext(0);
 
 // Etiqueta de ingrediente 4in x 2in (Datamax M-Class Mark II, 203 dpi). Es un SVG de 1000 x 500 unidades
 // (250 unidades por pulgada), así se imprime con el tamaño exacto con cualquier driver y escala sin perder nitidez.
@@ -26,16 +30,21 @@ function T({ x, y, children, size = 36, bold = false, anchor = 'start', maxW }) 
   const w = measure(text, f.size, bold);
   // Si ni con el tamaño mínimo cabe, se comprime el texto en vez de salirse de la etiqueta
   const squeeze = f.squeeze && w > f.squeeze ? { textLength: f.squeeze, lengthAdjust: 'spacingAndGlyphs' } : {};
+  const boost = useContext(Boost);
   return (
-    <text x={x} y={y} fontSize={f.size} fontWeight={bold ? 700 : 400} textAnchor={anchor} fontFamily={FONT} fill="#000" {...squeeze}>
+    <text x={x} y={y} fontSize={f.size} fontWeight={bold ? 700 : 400} textAnchor={anchor} fontFamily={FONT} fill="#000"
+      stroke={boost ? '#000' : undefined} strokeWidth={boost || undefined} strokeLinejoin="round" {...squeeze}>
       {text}
     </text>
   );
 }
 
-const Line = ({ x1, x2, y }) => <line x1={x1} x2={x2} y1={y + 5} y2={y + 5} stroke="#000" strokeWidth="2.5" />;
+function Line({ x1, x2, y }) {
+  const boost = useContext(Boost);
+  return <line x1={x1} x2={x2} y1={y + 5} y2={y + 5} stroke="#000" strokeWidth={2.5 + boost * 1.5} />;
+}
 
-export default function IngredientLabel({ name, part, seq, desc, container = 1, of = 1, width = '100%', height }) {
+export default function IngredientLabel({ name, part, seq, desc, container = 1, of = 1, width = '100%', height, boost = 0 }) {
   const lotRow = (y, dx = 0) => (
     <g key={y}>
       <T x={48 + dx} y={y}>Lot:</T>
@@ -48,6 +57,7 @@ export default function IngredientLabel({ name, part, seq, desc, container = 1, 
   );
 
   return (
+    <Boost.Provider value={boost}>
     <svg viewBox="0 0 1000 500" width={width} height={height} xmlns="http://www.w3.org/2000/svg" style={{ display: 'block', background: '#fff' }}>
       <T x={48} y={46} size={44} bold maxW={905}>{`NAME: ${name || ''}`}</T>
 
@@ -85,5 +95,6 @@ export default function IngredientLabel({ name, part, seq, desc, container = 1, 
 
       <T x={48} y={474} size={22}>Innovative Labs</T>
     </svg>
+    </Boost.Provider>
   );
 }

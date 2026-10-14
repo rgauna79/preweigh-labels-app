@@ -10,6 +10,7 @@ const inputCls =
   'w-full px-2.5 py-1.5 border border-slate-300 rounded-md bg-white text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none';
 
 const norm = (s) => String(s ?? '').trim();
+const BOOST = [0, 0.8, 1.6, 2.4]; // 0 normal · 1 oscuro · 2 más oscuro · 3 máximo
 const PAGE_STYLE_ID = 'ing-page-style';
 
 const load = (key, fallback) => {
@@ -44,7 +45,7 @@ export default function IngredientLabels({ onBack }) {
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(0);
   const [copies, setCopies] = useState(1);
-  const [offset, setOffset] = useState(() => ({ x: 0, y: 0, ...load('lm.ing.offset', {}) })); // calibración en mm
+  const [offset, setOffset] = useState(() => ({ x: 0, y: 0, dark: 2, ...load('lm.ing.offset', {}) })); // calibración en mm
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState('');
   const [toast, setToast] = useState(null);
@@ -345,7 +346,7 @@ export default function IngredientLabels({ onBack }) {
 
             <details className="w-full max-w-[640px] rounded-xl bg-white p-4 text-sm shadow-sm ring-1 ring-slate-200">
               <summary className="cursor-pointer text-xs font-bold text-slate-600">{t('ing.calib')}</summary>
-              <p className="mt-2 text-xs text-slate-500">{t('ing.calibHelp')}</p>
+              <p className="mt-2 text-xs text-slate-500">{t('ing.calibHelp')} {t('ing.darkHelp')}</p>
               <div className="mt-3 flex flex-wrap items-end gap-3">
                 {[['x', t('ing.offX')], ['y', t('ing.offY')]].map(([k, label]) => (
                   <label key={k} className="block">
@@ -353,6 +354,12 @@ export default function IngredientLabels({ onBack }) {
                     <input type="number" step="0.5" min="-10" max="10" value={offset[k]} onChange={(e) => setOff(k, e.target.value)} className={`${inputCls} !w-24`} />
                   </label>
                 ))}
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-bold text-slate-500">{t('ing.dark')}</span>
+                  <select value={offset.dark} onChange={(e) => setOff('dark', Number(e.target.value))} className={`${inputCls} !w-36`}>
+                    {[0, 1, 2, 3].map((n) => <option key={n} value={n}>{t(`ing.dark${n}`)}</option>)}
+                  </select>
+                </label>
                 <button onClick={() => doPrint([sample], true)} className="flex items-center gap-1.5 rounded-md bg-slate-700 px-3 py-2 text-xs font-bold text-white hover:bg-slate-800">
                   <Printer size={14} /> {t('ing.test')}
                 </button>
@@ -371,7 +378,7 @@ export default function IngredientLabels({ onBack }) {
             printJob.list.map((r, i) => (
               <div key={`${c}-${i}`} className="ing-sheet">
                 <div style={{ transform: `translate(${mm(offset.x)}mm, ${mm(offset.y)}mm)` }}>
-                  <IngredientLabel name={printJob.test ? 'FORMULA NAME' : title} part={r.part} seq={r.seq} desc={r.desc} width="4in" height="2in" />
+                  <IngredientLabel name={printJob.test ? 'FORMULA NAME' : title} part={r.part} seq={r.seq} desc={r.desc} width="4in" height="2in" boost={BOOST[offset.dark] ?? 0} />
                 </div>
               </div>
             ))
