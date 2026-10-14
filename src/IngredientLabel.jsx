@@ -25,6 +25,28 @@ function fit(text, maxW, base, bold, min = 16) {
   return w <= maxW ? { size: base } : { size: Math.max(min, Math.floor((base * maxW) / w)), squeeze: maxW };
 }
 
+// Cuánto cabe cada campo en la etiqueta. 'ok' · 'small' (se imprime achicado) · 'cut' (ilegible: se comprime o se corta)
+const NAME_MAX = 905;
+const FLOOR = { name: 26, part: 24, desc: 24, seq: 24 };
+function fieldStatus(text, maxW, base, bold, floor) {
+  if (!text) return 'ok';
+  const f = fit(text, maxW, base, bold);
+  if (f.squeeze && measure(text, f.size, bold) > f.squeeze) return 'cut';
+  if (f.size < floor) return 'cut';
+  return f.size < base * 0.75 ? 'small' : 'ok';
+}
+
+export function checkLabel({ name, part, seq, desc, batch = '' }) {
+  const batchText = String(batch ?? '').trim() ? `#${String(batch).trim()}` : '';
+  const nameMax = NAME_MAX - (batchText ? measure(batchText, 44, true) + GAP : 0);
+  return {
+    name: fieldStatus(`NAME: ${name || ''}`, nameMax, 44, true, FLOOR.name),
+    part: fieldStatus(String(part ?? ''), 255, 36, true, FLOOR.part),
+    desc: fieldStatus(String(desc ?? ''), 685, 40, true, FLOOR.desc),
+    seq: fieldStatus(String(seq ?? ''), 150, 46, true, FLOOR.seq),
+  };
+}
+
 function T({ x, y, children, size = 36, bold = false, anchor = 'start', maxW }) {
   const text = String(children ?? '');
   const f = maxW ? fit(text, maxW, size, bold) : { size };

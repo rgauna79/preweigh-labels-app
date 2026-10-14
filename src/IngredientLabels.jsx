@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, ClipboardPaste, FileUp, Plus, Printer, Save, Trash2, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, ClipboardPaste, FileUp, Plus, Printer, Save, Trash2, X } from 'lucide-react';
 import Papa from 'papaparse';
 import { useLang } from './i18n.js';
 import Toast from './Toast.jsx';
-import IngredientLabel from './IngredientLabel.jsx';
+import IngredientLabel, { checkLabel } from './IngredientLabel.jsx';
 import { DIL_X, DIL_Y, DPI, THRESHOLDS, labelBitmap, testBitmap } from './rasterize.js';
 import { fetchBom, fetchBomIndex, fetchFormulas, fetchItem, writeBom, writeFormulas, writeItems } from './api.js';
 
@@ -199,6 +199,7 @@ export default function IngredientLabels({ onBack }) {
 
   const doPrint = async (list, test = false) => {
     setStatus('');
+    if (!test && cuts.length && !window.confirm(t('ing.vConfirm', { list: cuts.slice(0, 5).map((i) => `• ${i.text}`).join('\n') }))) return;
     if (!test && total > 60 && !window.confirm(t('ing.confirmMany', { n: total }))) return;
     setPreparing(true);
     try {
@@ -245,6 +246,30 @@ export default function IngredientLabels({ onBack }) {
 
   const title = norm(name) || known?.name || '';
   const shown = rows[preview] || rows[0];
+
+  // --- Validación: nada debe salirse ni imprimirse ilegible
+  const worstBatch = batchList.reduce((a, b) => (b.length > a.length ? b : a), '');
+  const checks = useMemo(() => rows.map((r) => ({ id: r.id, sn: r.seq, ...checkLabel({ name: title, part: showPart ? r.part : '', seq: r.seq, desc: r.desc, batch: worstBatch }) })), [rows, title, showPart, worstBatch]); // eslint-disable-line react-hooks/exhaustive-deps
+  const fieldName = { name: t('ing.fName'), part: t('ing.part'), desc: t('ing.desc'), seq: 'Seq #' };
+  const issues = [];
+  const nameState = checks.length ? (checks.some((c) => c.name === 'cut') ? 'cut' : checks.some((c) => c.name === 'small') ? 'small' : 'ok') : checkLabel({ name: title, batch: worstBatch }).name;
+  if (nameState !== 'ok') issues.push({ level: nameState, text: t(nameState === 'cut' ? 'ing.vCut' : 'ing.vSmall', { field: fieldName.name }) });
+  checks.forEach((c) => {
+    const r = rows.find((x) => x.id === c.id);
+    if (!r || !(norm(r.part) || norm(r.desc))) return;
+    ['part', 'desc', 'seq'].forEach((k) => {
+      if (c[k] !== 'ok') issues.push({ level: c[k], text: `Seq ${c.sn || '?'} · ${t(c[k] === 'cut' ? 'ing.vCut' : 'ing.vSmall', { field: fieldName[k] })}` });
+    });
+    if (!norm(r.desc)) issues.push({ level: 'small', text: t('ing.vNoDesc', { s: c.sn || '?' }) });
+    else if (showPart && !norm(r.part)) issues.push({ level: 'small', text: t('ing.vNoPart', { s: c.sn || '?' }) });
+  });
+  if (!norm(title) && rows.length) issues.push({ level: 'small', text: t('ing.vNoName') });
+  const lastBatch = parseInt(batchList[batchList.length - 1], 10);
+  if (linkedTotal && lastBatch > linkedTotal) issues.push({ level: 'small', text: t('ing.vBatchOver', { b: lastBatch, t: linkedTotal }) });
+  if (isNum(batchFrom) && isNum(batchTo) && parseInt(batchFrom, 10) > parseInt(batchTo, 10)) issues.push({ level: 'small', text: t('ing.vSwap') });
+  const cuts = issues.filter((i) => i.level === 'cut');
+  const rowState = (id, k) => checks.find((c) => c.id === id)?.[k] || 'ok';
+  const stateCls = (st) => (st === 'cut' ? '!border-rose-500 !bg-rose-50' : st === 'small' ? '!border-amber-500 !bg-amber-50' : '');
   const sample = { seq: '10', part: 'ABC-12345', desc: 'SAMPLE INGREDIENT NAME' };
 
   const labelFor = (r) => (
@@ -292,7 +317,7 @@ export default function IngredientLabels({ onBack }) {
                   <input value={known ? known.name : name} readOnly={Boolean(known)} maxLength={80}
                     onChange={(e) => setName(e.target.value)}
                     placeholder={norm(formula) ? t('ing.namePh') : ''}
-                    className={`${inputCls} ${known ? 'bg-slate-50 text-slate-600' : ''}`} />
+                    className={`${inputCls} ${known ? 'bg-slate-50 text-slate-600' : ''} ${stateCls(nameState)}`} />
                 </div>
               </div>
               {status && <p className="rounded-md bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">{status}</p>}
@@ -316,11 +341,11 @@ export default function IngredientLabels({ onBack }) {
                         <td className="py-1 pl-3">
                           <input type="checkbox" checked={r.checked} onChange={(e) => patch(r.id, { checked: e.target.checked })} aria-label={t('ing.print')} />
                         </td>
-                        <td className="px-1 py-1"><input value={r.seq} inputMode="numeric" maxLength={5} className={inputCls}
+                        <td className="px-1 py-1"><input value={r.seq} inputMode="numeric" maxLength={5} className={`${inputCls} ${stateCls(rowState(r.id, 'seq'))}`}
                           onChange={(e) => patch(r.id, { seq: e.target.value.replace(/\D/g, '') })} /></td>
-                        <td className="px-1 py-1"><input value={r.part} maxLength={30} className={inputCls}
+                        <td className="px-1 py-1"><input value={r.part} maxLength={30} title={rowState(r.id, 'part') !== 'ok' ? t(rowState(r.id, 'part') === 'cut' ? 'ing.vCut' : 'ing.vSmall', { field: t('ing.part') }) : ''} className={`${inputCls} ${showPart ? stateCls(rowState(r.id, 'part')) : ''}`}
                           onChange={(e) => patch(r.id, { part: e.target.value })} onBlur={() => lookupPart(r)} /></td>
-                        <td className="px-1 py-1"><input value={r.desc} maxLength={80} className={inputCls}
+                        <td className="px-1 py-1"><input value={r.desc} maxLength={80} title={rowState(r.id, 'desc') !== 'ok' ? t(rowState(r.id, 'desc') === 'cut' ? 'ing.vCut' : 'ing.vSmall', { field: t('ing.desc') }) : ''} className={`${inputCls} ${stateCls(rowState(r.id, 'desc'))}`}
                           onChange={(e) => patch(r.id, { desc: e.target.value })} /></td>
                         <td className="pr-2">
                           <button onClick={() => removeRow(r.id)} title={t('ing.remove')} className="rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"><Trash2 size={14} /></button>
@@ -333,6 +358,16 @@ export default function IngredientLabels({ onBack }) {
               {norm(formula) && !rows.length && !busy && <p className="p-6 text-center text-sm text-slate-500">{t('ing.empty')}</p>}
               {!norm(formula) && <p className="p-6 text-center text-sm text-slate-500">{t('ing.start')}</p>}
             </div>
+
+            {norm(formula) && issues.length > 0 && (
+              <ul className="max-h-28 space-y-1 overflow-auto border-t border-slate-200 bg-white px-4 py-2" aria-label={t('ing.issues')}>
+                {issues.map((i, n) => (
+                  <li key={n} className={`flex items-start gap-1.5 text-xs font-bold ${i.level === 'cut' ? 'text-rose-700' : 'text-amber-700'}`}>
+                    <AlertTriangle size={13} className="mt-px shrink-0" /> <span>{i.text}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
 
             {norm(formula) && (
               <div className="space-y-2 border-t border-slate-200 bg-slate-50 p-3">
