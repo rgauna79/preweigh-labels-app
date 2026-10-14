@@ -76,6 +76,12 @@ body {
     overflow: hidden;
     break-after: page;
   }
+  .ing-sheet img {
+    display: block;
+    width: 4in;
+    height: 2in;
+    image-rendering: pixelated;
+  }
   .ing-sheet:last-child {
     break-after: auto;
   }

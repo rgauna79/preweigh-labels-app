@@ -4,13 +4,13 @@ import Papa from 'papaparse';
 import { useLang } from './i18n.js';
 import Toast from './Toast.jsx';
 import IngredientLabel from './IngredientLabel.jsx';
+import { DPI, THRESHOLDS, labelBitmap } from './rasterize.js';
 import { fetchBom, fetchBomIndex, fetchFormulas, fetchItem, writeBom, writeFormulas, writeItems } from './api.js';
 
 const inputCls =
   'w-full px-2.5 py-1.5 border border-slate-300 rounded-md bg-white text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none';
 
 const norm = (s) => String(s ?? '').trim();
-const BOOST = [0, 0.8, 1.6, 2.4]; // 0 normal · 1 oscuro · 2 más oscuro · 3 máximo
 const PAGE_STYLE_ID = 'ing-page-style';
 
 const load = (key, fallback) => {
@@ -177,7 +177,23 @@ export default function IngredientLabels({ onBack }) {
   const selected = rows.filter((r) => r.checked && (norm(r.part) || norm(r.desc)));
   const total = selected.length * copies;
 
-  const doPrint = (list, test = false) => setPrintJob({ list, test, copies: test ? 1 : copies });
+  const doPrint = async (list, test = false) => {
+    setStatus('');
+    try {
+      const mmToDots = (v) => (mm(v) * DPI) / 25.4;
+      const images = await Promise.all(
+        list.map((r) =>
+          labelBitmap(
+            { name: test ? 'FORMULA NAME' : title, part: r.part, seq: r.seq, desc: r.desc, batch: test ? '1' : norm(batch) },
+            { threshold: THRESHOLDS[offset.dark] ?? THRESHOLDS[2], dx: mmToDots(offset.x), dy: mmToDots(offset.y) }
+          )
+        )
+      );
+      setPrintJob({ images, copies: test ? 1 : copies });
+    } catch (e) {
+      setStatus(e.message);
+    }
+  };
 
   useEffect(() => {
     if (!printJob) return undefined;
@@ -188,8 +204,14 @@ export default function IngredientLabels({ onBack }) {
     document.head.appendChild(style);
     const done = () => { style.remove(); setPrintJob(null); };
     window.addEventListener('afterprint', done, { once: true });
-    const id = requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
-    return () => { cancelAnimationFrame(id); window.removeEventListener('afterprint', done); style.remove(); };
+    let cancelled = false;
+    // Espera a que todas las imágenes estén decodificadas antes de abrir el diálogo
+    requestAnimationFrame(async () => {
+      const imgs = Array.from(document.querySelectorAll('.ing-print img'));
+      await Promise.all(imgs.map((i) => i.decode().catch(() => {})));
+      if (!cancelled) window.print();
+    });
+    return () => { cancelled = true; window.removeEventListener('afterprint', done); style.remove(); };
   }, [printJob]);
 
   const setOff = (k, v) => {
@@ -379,11 +401,9 @@ export default function IngredientLabels({ onBack }) {
       <div className="ing-print">
         {printJob &&
           Array.from({ length: printJob.copies }).flatMap((_, c) =>
-            printJob.list.map((r, i) => (
+            printJob.images.map((src, i) => (
               <div key={`${c}-${i}`} className="ing-sheet">
-                <div style={{ transform: `translate(${mm(offset.x)}mm, ${mm(offset.y)}mm)` }}>
-                  <IngredientLabel name={printJob.test ? 'FORMULA NAME' : title} part={r.part} seq={r.seq} desc={r.desc} width="4in" height="2in" boost={BOOST[offset.dark] ?? 0} batch={printJob.test ? '1' : norm(batch)} />
-                </div>
+                <img src={src} alt="" />
               </div>
             ))
           )}
