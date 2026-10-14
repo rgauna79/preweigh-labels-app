@@ -44,6 +44,7 @@ export default function IngredientLabels({ onBack }) {
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(0);
+  const [batch, setBatch] = useState(() => load('lm.ing.batch', ''));
   const [copies, setCopies] = useState(1);
   const [offset, setOffset] = useState(() => ({ x: 0, y: 0, dark: 2, ...load('lm.ing.offset', {}) })); // calibración en mm
   const [showPaste, setShowPaste] = useState(false);
@@ -203,7 +204,7 @@ export default function IngredientLabels({ onBack }) {
   const sample = { seq: '10', part: 'ABC-12345', desc: 'SAMPLE INGREDIENT NAME' };
 
   const labelFor = (r) => (
-    <IngredientLabel name={title || 'FORMULA NAME'} part={r.part} seq={r.seq} desc={r.desc} />
+    <IngredientLabel name={title || 'FORMULA NAME'} part={r.part} seq={r.seq} desc={r.desc} batch={norm(batch)} />
   );
 
   return (
@@ -330,7 +331,10 @@ export default function IngredientLabels({ onBack }) {
 
             <div className="w-full max-w-[640px] space-y-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
               <div className="flex items-center gap-3">
-                <label className="text-xs font-bold text-slate-600">{t('ing.copies')}</label>
+                <label className="text-xs font-bold text-slate-600">{t('lbl.batch')}</label>
+                <input value={batch} maxLength={10} placeholder="1" className={`${inputCls} !w-24`}
+                  onChange={(e) => { setBatch(e.target.value); save('lm.ing.batch', e.target.value); }} />
+                <label className="ml-2 text-xs font-bold text-slate-600">{t('ing.copies')}</label>
                 <input type="number" min={1} max={20} value={copies} className={`${inputCls} !w-16`}
                   onChange={(e) => setCopies(Math.min(20, Math.max(1, parseInt(e.target.value, 10) || 1)))} />
                 <div className="flex-1" />
@@ -378,7 +382,7 @@ export default function IngredientLabels({ onBack }) {
             printJob.list.map((r, i) => (
               <div key={`${c}-${i}`} className="ing-sheet">
                 <div style={{ transform: `translate(${mm(offset.x)}mm, ${mm(offset.y)}mm)` }}>
-                  <IngredientLabel name={printJob.test ? 'FORMULA NAME' : title} part={r.part} seq={r.seq} desc={r.desc} width="4in" height="2in" boost={BOOST[offset.dark] ?? 0} />
+                  <IngredientLabel name={printJob.test ? 'FORMULA NAME' : title} part={r.part} seq={r.seq} desc={r.desc} width="4in" height="2in" boost={BOOST[offset.dark] ?? 0} batch={printJob.test ? '1' : norm(batch)} />
                 </div>
               </div>
             ))

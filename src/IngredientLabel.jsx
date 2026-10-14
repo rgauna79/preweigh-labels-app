@@ -44,7 +44,7 @@ function Line({ x1, x2, y }) {
   return <line x1={x1} x2={x2} y1={y + 5} y2={y + 5} stroke="#000" strokeWidth={2.5 + boost * 1.5} />;
 }
 
-export default function IngredientLabel({ name, part, seq, desc, container = 1, of = 1, width = '100%', height, boost = 0 }) {
+export default function IngredientLabel({ name, part, seq, desc, container = 1, of = 1, width = '100%', height, boost = 0, batch = '' }) {
   const lotRow = (y, dx = 0) => (
     <g key={y}>
       <T x={48 + dx} y={y}>Lot:</T>
@@ -87,6 +87,9 @@ export default function IngredientLabel({ name, part, seq, desc, container = 1, 
 
       <T x={53} y={384}>Total Weight :</T>
       <Line x1={275} x2={488} y={384} />
+      <T x={520} y={384}>Batch #</T>
+      <Line x1={650} x2={940} y={384} />
+      <T x={795} y={378} size={40} bold anchor="middle" maxW={280}>{batch}</T>
 
       <T x={251} y={430}>Weighed By :</T>
       <Line x1={466} x2={621} y={430} />
