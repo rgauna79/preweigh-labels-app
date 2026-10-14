@@ -10,6 +10,7 @@ const Boost = createContext(0);
 export const ING_W_IN = 4;
 export const ING_H_IN = 2;
 
+const GAP = 28;
 const FONT = 'Arial, Helvetica, sans-serif';
 let ctx = null;
 const measure = (text, size, bold) => {
@@ -45,6 +46,12 @@ function Line({ x1, x2, y }) {
 }
 
 export default function IngredientLabel({ name, part, seq, desc, container = 1, of = 1, width = '100%', height, boost = 0, batch = '' }) {
+  // El batch va pegado al nombre de la fórmula, con "#" antes
+  const nameText = `NAME: ${name || ''}`;
+  const batchText = String(batch ?? '').trim() ? `#${String(batch).trim()}` : '';
+  const batchW = batchText ? measure(batchText, 44, true) : 0;
+  const fn = fit(nameText, 905 - (batchText ? batchW + GAP : 0), 44, true);
+  const nameW = Math.min(measure(nameText, fn.size, true), 905 - (batchText ? batchW + GAP : 0));
   const lotRow = (y, dx = 0) => (
     <g key={y}>
       <T x={48 + dx} y={y}>Lot:</T>
@@ -59,7 +66,8 @@ export default function IngredientLabel({ name, part, seq, desc, container = 1, 
   return (
     <Boost.Provider value={boost}>
     <svg viewBox="0 0 1000 500" width={width} height={height} xmlns="http://www.w3.org/2000/svg" style={{ display: 'block', background: '#fff' }}>
-      <T x={48} y={46} size={44} bold maxW={905}>{`NAME: ${name || ''}`}</T>
+      <T x={48} y={46} size={44} bold maxW={905 - (batchText ? batchW + GAP : 0)}>{nameText}</T>
+      {batchText && <T x={48 + nameW + GAP} y={46} size={44} bold>{batchText}</T>}
 
       <T x={48} y={98}>Item Code :</T>
       <Line x1={240} x2={511} y={98} />
@@ -87,9 +95,6 @@ export default function IngredientLabel({ name, part, seq, desc, container = 1, 
 
       <T x={53} y={384}>Total Weight :</T>
       <Line x1={275} x2={488} y={384} />
-      <T x={520} y={384}>Batch #</T>
-      <Line x1={650} x2={940} y={384} />
-      <T x={795} y={378} size={40} bold anchor="middle" maxW={280}>{batch}</T>
 
       <T x={251} y={430}>Weighed By :</T>
       <Line x1={466} x2={621} y={430} />
