@@ -4,7 +4,7 @@ import Papa from 'papaparse';
 import { useLang } from './i18n.js';
 import Toast from './Toast.jsx';
 import IngredientLabel from './IngredientLabel.jsx';
-import { DPI, THRESHOLDS, labelBitmap } from './rasterize.js';
+import { DPI, THRESHOLDS, labelBitmap, testBitmap } from './rasterize.js';
 import { fetchBom, fetchBomIndex, fetchFormulas, fetchItem, writeBom, writeFormulas, writeItems } from './api.js';
 
 const inputCls =
@@ -176,6 +176,8 @@ export default function IngredientLabels({ onBack }) {
   // --- Impresión: una página de 4 x 2 in por etiqueta
   const selected = rows.filter((r) => r.checked && (norm(r.part) || norm(r.desc)));
   const total = selected.length * copies;
+
+  const printDotTest = () => setPrintJob({ images: [testBitmap()], copies: 1 });
 
   const doPrint = async (list, test = false) => {
     setStatus('');
@@ -388,6 +390,9 @@ export default function IngredientLabels({ onBack }) {
                 </label>
                 <button onClick={() => doPrint([sample], true)} className="flex items-center gap-1.5 rounded-md bg-slate-700 px-3 py-2 text-xs font-bold text-white hover:bg-slate-800">
                   <Printer size={14} /> {t('ing.test')}
+                </button>
+                <button onClick={printDotTest} className="flex items-center gap-1.5 rounded-md bg-slate-500 px-3 py-2 text-xs font-bold text-white hover:bg-slate-600">
+                  <Printer size={14} /> {t('ing.dotTest')}
                 </button>
               </div>
             </details>
