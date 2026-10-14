@@ -109,3 +109,42 @@ export async function addHistory(entry) {
   const res = await call('history', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entry }) });
   if (!res.ok) throw new Error(tr('err.server'));
 }
+
+/** Lista de ingredientes guardada para una fórmula ({ formula, rows: [{ seq, part, desc }] }) o null si no tiene. */
+export async function fetchBom(formula) {
+  const res = await call(`boms?formula=${encodeURIComponent(formula)}`, { cache: 'no-store' });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(tr('err.server'));
+  return res.json();
+}
+
+/** Fórmulas que ya tienen lista de ingredientes: [{ formula, count }]. */
+export async function fetchBomIndex() {
+  const res = await call('boms', { cache: 'no-store' });
+  if (!res.ok) throw new Error(tr('err.server'));
+  return res.json();
+}
+
+/** op: 'add' (abierta, solo fórmulas sin lista) | 'upsert' | 'delete' (con PIN si está configurado). */
+export async function writeBom(op, item) {
+  const res = await withPin(() =>
+    call('boms', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op, item }) })
+  );
+  return res.json();
+}
+
+/** Busca un número de parte en el catálogo; null si no existe. */
+export async function fetchItem(part) {
+  const res = await call(`items?part=${encodeURIComponent(part)}`, { cache: 'no-store' });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(tr('err.server'));
+  return res.json();
+}
+
+/** Importación masiva del catálogo (con PIN si está configurado). items: [{ part, description }] */
+export async function writeItems(op, items) {
+  const res = await withPin(() =>
+    call('items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op, items }) })
+  );
+  return res.json();
+}

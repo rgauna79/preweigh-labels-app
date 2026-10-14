@@ -40,6 +40,15 @@ body {
   pointer-events: none;
 }
 
+/* Etiquetas de ingredientes (4 x 2 in): fuera de pantalla hasta imprimir */
+.ing-print {
+  position: absolute;
+  left: -20000px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 @media print {
   @page {
     size: letter landscape;
@@ -51,8 +60,24 @@ body {
     margin: 0;
     padding: 0;
   }
-  .app-root {
+  .app-root,
+  .ing-ui {
     display: none !important;
+  }
+  .ing-print {
+    position: static;
+    visibility: visible;
+    pointer-events: auto;
+  }
+  /* Una página de 4 x 2 in por etiqueta; el alto va un pelo por debajo para no generar páginas en blanco */
+  .ing-sheet {
+    width: 4in;
+    height: 1.99in;
+    overflow: hidden;
+    break-after: page;
+  }
+  .ing-sheet:last-child {
+    break-after: auto;
   }
   .print-root {
     position: static;

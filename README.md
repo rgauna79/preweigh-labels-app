@@ -6,6 +6,15 @@ App para generar e imprimir los tags de preweigh (Preweigh, Missing y Keep in Re
 React + Vite + Tailwind. Las fórmulas y el logo son **compartidos**: se guardan en
 Upstash Redis mediante una función de Vercel (`api/[route].js`).
 
+## Etiquetas de ingredientes (4 × 2 in)
+Botón **Etiquetas de ingredientes** en la barra de la app. Escribes la fórmula y se imprimen sus etiquetas
+(Seq # 10, 20, 30…, Item Code, Description, Container 1 OF 1…). La lista de ingredientes de cada fórmula se arma
+una sola vez (a mano, pegando desde Excel o con el catálogo de números de parte en CSV `Part,Description`) y queda
+guardada para todos. Los ingredientes nuevos entran solos al catálogo.
+
+Impresión desde el navegador con el driver de la Datamax (203 dpi): en el diálogo elegir papel **4 × 2 in**, escala
+**100%** y sin márgenes. Si sale corrido, se ajusta en *Alineación de la impresora* (hay una etiqueta de prueba).
+
 ## Publicar en Vercel
 1. Importa el repo en Vercel (Framework: Vite). Pulsa **Deploy**.
 2. **Base de datos:** en el proyecto → pestaña **Storage** → **Create Database** (o Marketplace) → **Upstash Redis** →

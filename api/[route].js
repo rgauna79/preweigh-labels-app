@@ -4,6 +4,7 @@
 //   POST /api/formulas  -> { op: 'add' | 'upsert' | 'delete' | 'replace', items: [...] }
 //   GET  /api/logo      -> { dataUrl }  (404 si no hay)   PUT -> { dataUrl }   DELETE
 //   GET  /api/history   -> últimas impresiones           POST -> { entry }
+//   GET  /api/items?part=X | /api/boms?formula=X   catálogo de ingredientes y lista de ingredientes por fórmula (etiquetas)
 //   GET  /api/auth      -> { pinRequired }                POST valida el PIN
 // Si existe la variable EDIT_PIN, todo cambio (salvo "add" y registrar historial) exige el header x-edit-pin.
 // El servidor valida largos y cantidades: los límites del navegador no son suficientes por sí solos.
@@ -19,6 +20,12 @@ const HISTORY_SHOWN = 200;
 const MAX_FORMULAS = 5000;
 const MAX_ITEMS_PER_REQUEST = 5000;
 const MAX_LOGO = 1.5 * 1024 * 1024; // caracteres del dataURL
+
+const ITEMS_KEY = 'lm:i'; // hash: part number -> { part, description }  (catálogo de ingredientes)
+const BOMS_KEY = 'lm:b'; // hash: fórmula -> { formula, rows: [{ seq, part, desc }] }  (etiquetas de ingredientes)
+const MAX_ITEMS = 30000;
+const MAX_ROWS = 80;
+const IL = { part: 30, desc: 80 };
 
 const LEN = { formula: 20, name: 80, ile: 10 };
 const HLEN = { formula: 20, name: 80, batch: 10, batchTotal: 5, batches: 30, po: 130, date: 10, ile: 10, identifier: 12, missing: 600, refer: 700, by: 40 };
@@ -76,6 +83,34 @@ async function readFormulas() {
 const cleanFormulaSafe = (f) => {
   try { return cleanFormula(f); } catch { return null; }
 };
+
+function cleanItem(i) {
+  const out = { part: text(i?.part), description: text(i?.description) };
+  if (!out.part) return null;
+  if (out.part.length > IL.part) throw new ApiError(400, 'too_long', `part is too long (max ${IL.part})`);
+  if (out.description.length > IL.desc) throw new ApiError(400, 'too_long', `description is too long (max ${IL.desc})`);
+  return out;
+}
+
+function cleanBom(b) {
+  const formula = text(b?.formula);
+  if (!formula) throw new ApiError(400, 'bad_op', 'formula is required');
+  if (formula.length > LEN.formula) throw new ApiError(400, 'too_long', `formula is too long (max ${LEN.formula})`);
+  const raw = Array.isArray(b?.rows) ? b.rows : [];
+  if (raw.length > MAX_ROWS) throw new ApiError(400, 'too_many', `Too many ingredients (max ${MAX_ROWS})`);
+  const seen = new Set();
+  const rows = [];
+  for (const r of raw) {
+    const row = { seq: parseInt(r?.seq, 10), part: text(r?.part), desc: text(r?.desc) };
+    if (!row.part && !row.desc) continue;
+    if (!Number.isInteger(row.seq) || row.seq < 1 || row.seq > 99999) throw new ApiError(400, 'bad_seq', 'Seq # must be a whole number');
+    if (seen.has(row.seq)) throw new ApiError(400, 'dup_seq', `Seq # ${row.seq} is repeated`);
+    seen.add(row.seq);
+    for (const k of Object.keys(IL)) if (row[k].length > IL[k]) throw new ApiError(400, 'too_long', `${k} is too long (max ${IL[k]})`);
+    rows.push(row);
+  }
+  return { formula, rows: rows.sort((a, c) => a.seq - c.seq) };
+}
 
 function cleanHistory(e) {
   const out = {};
@@ -147,6 +182,74 @@ export default async function handler(req, res) {
           return fail(400, 'bad_op', 'Unknown operation');
       }
       return send(200, await readFormulas());
+    }
+
+    // Catálogo de ingredientes: GET ?part=X -> un ingrediente (404 si no existe) · GET -> { count } · POST { op, items }
+    if (route === 'items') {
+      if (req.method === 'GET') {
+        const part = text(req.query.part);
+        if (!part) return send(200, { count: await redis('HLEN', ITEMS_KEY) });
+        const raw = await redis('HGET', ITEMS_KEY, part.toLowerCase());
+        return raw ? send(200, JSON.parse(raw)) : fail(404, 'not_found', 'Not found');
+      }
+      if (req.method !== 'POST') return fail(405, 'method', 'Method not allowed');
+      const b = body();
+      const raw = Array.isArray(b.items) ? b.items : [];
+      if (raw.length > MAX_ITEMS_PER_REQUEST) throw new ApiError(400, 'too_many', 'Too many items in one request');
+      const items = raw.map(cleanItem).filter(Boolean);
+      const field = (i) => i.part.toLowerCase();
+      if (b.op === 'add') { // agregar uno nuevo nunca requiere PIN; si ya existe no se toca
+        if (items.length && (await redis('HLEN', ITEMS_KEY)) + items.length > MAX_ITEMS) throw new ApiError(400, 'too_many', 'Too many items');
+        if (items.length) await redisTx(items.map((i) => ['HSETNX', ITEMS_KEY, field(i), JSON.stringify(i)]));
+        return send(200, { count: await redis('HLEN', ITEMS_KEY) });
+      }
+      if (!pinOk) return denied();
+      if (b.op === 'upsert') {
+        if (items.length) await redis('HSET', ITEMS_KEY, ...items.flatMap((i) => [field(i), JSON.stringify(i)]));
+      } else if (b.op === 'delete') {
+        if (items.length) await redis('HDEL', ITEMS_KEY, ...items.map(field));
+      } else {
+        return fail(400, 'bad_op', 'Unknown operation');
+      }
+      return send(200, { count: await redis('HLEN', ITEMS_KEY) });
+    }
+
+    // Etiquetas de ingredientes por fórmula: GET ?formula=X -> { formula, rows } · GET -> [{ formula, count }]
+    // POST { op: 'add' | 'upsert' | 'delete', item: { formula, rows } }
+    if (route === 'boms') {
+      if (req.method === 'GET') {
+        const formula = text(req.query.formula);
+        if (formula) {
+          const raw = await redis('HGET', BOMS_KEY, formula.toLowerCase());
+          return raw ? send(200, JSON.parse(raw)) : fail(404, 'not_found', 'Not found');
+        }
+        const flat = (await redis('HGETALL', BOMS_KEY)) || [];
+        const out = [];
+        for (let i = 1; i < flat.length; i += 2) {
+          try { const v = JSON.parse(flat[i]); out.push({ formula: v.formula, count: v.rows.length }); } catch { /* entrada dañada */ }
+        }
+        return send(200, out);
+      }
+      if (req.method !== 'POST') return fail(405, 'method', 'Method not allowed');
+      const b = body();
+      if (b.op === 'delete') {
+        if (!pinOk) return denied();
+        await redis('HDEL', BOMS_KEY, text(b.item?.formula).toLowerCase());
+        return send(200, { ok: true });
+      }
+      if (b.op !== 'add' && b.op !== 'upsert') return fail(400, 'bad_op', 'Unknown operation');
+      const bom = cleanBom(b.item);
+      const key = bom.formula.toLowerCase();
+      // Cada ingrediente nuevo entra solo al catálogo (los que ya existen no se tocan)
+      const learn = bom.rows.filter((r) => r.part && r.desc).map((r) => ['HSETNX', ITEMS_KEY, r.part.toLowerCase(), JSON.stringify({ part: r.part, description: r.desc })]);
+      if (b.op === 'add') { // una fórmula nueva no requiere PIN; si ya tiene lista no se toca
+        if ((await redis('HEXISTS', BOMS_KEY, key)) === 1) return fail(409, 'exists', 'This formula already has a list');
+        await redisTx([['HSETNX', BOMS_KEY, key, JSON.stringify(bom)], ...learn]);
+      } else {
+        if (!pinOk) return denied();
+        await redisTx([['HSET', BOMS_KEY, key, JSON.stringify(bom)], ...learn]);
+      }
+      return send(200, bom);
     }
 
     if (route === 'history') {

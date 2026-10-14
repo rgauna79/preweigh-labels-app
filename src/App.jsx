@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, BookmarkPlus, CheckCircle2, ChevronsRight, Clock, Eraser, Info, Minus, Plus, Printer, Settings as Cog, X } from 'lucide-react';
+import { AlertTriangle, BookmarkPlus, CheckCircle2, ChevronsRight, Clock, Eraser, Info, Minus, Plus, Printer, Settings as Cog, Tag, X } from 'lucide-react';
 import { useLang } from './i18n.js';
 import FormulaManager from './FormulaManager.jsx';
 import ListField from './ListField.jsx';
@@ -66,7 +66,7 @@ function Section({ title, action, children }) {
   );
 }
 
-export default function App() {
+export default function App({ onOpenIngredients }) {
   const { lang, setLang, t } = useLang();
   const [data, setData] = useState(() => ({ ...EMPTY, ...load('lm.data', {}), date: todayStr() }));
   const [job, setJob] = useState(() => ({ pallets: 1, withMissing: false, withRefer: false, copies: 1, ...load('lm.job', {}) }));
@@ -346,7 +346,10 @@ export default function App() {
             <button onClick={() => { setShowHistory(true); refresh(); }} className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">
               <Clock size={14} /> {t('hist.btn')}
             </button>
-            <button onClick={() => setShowSettings(true)} className="ml-auto flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">
+            <button onClick={onOpenIngredients} title={t('ing.openTitle')} className="ml-auto flex items-center gap-1.5 rounded-md bg-violet-100 px-2.5 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-200">
+              <Tag size={14} /> {t('ing.open')}
+            </button>
+            <button onClick={() => setShowSettings(true)} className=" flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">
               <Cog size={14} /> {t('settings.btn')}
             </button>
           </nav>
