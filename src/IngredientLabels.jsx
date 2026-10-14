@@ -4,7 +4,7 @@ import Papa from 'papaparse';
 import { useLang } from './i18n.js';
 import Toast from './Toast.jsx';
 import IngredientLabel from './IngredientLabel.jsx';
-import { DPI, THRESHOLDS, labelBitmap, testBitmap } from './rasterize.js';
+import { DIL_X, DIL_Y, DPI, THRESHOLDS, labelBitmap, testBitmap } from './rasterize.js';
 import { fetchBom, fetchBomIndex, fetchFormulas, fetchItem, writeBom, writeFormulas, writeItems } from './api.js';
 
 const inputCls =
@@ -187,7 +187,7 @@ export default function IngredientLabels({ onBack }) {
         list.map((r) =>
           labelBitmap(
             { name: test ? 'FORMULA NAME' : title, part: r.part, seq: r.seq, desc: r.desc, batch: test ? '1' : norm(batch) },
-            { threshold: THRESHOLDS[offset.dark] ?? THRESHOLDS[2], dx: mmToDots(offset.x), dy: mmToDots(offset.y) }
+            { threshold: THRESHOLDS[offset.dark] ?? THRESHOLDS[2], dilY: DIL_Y[offset.dark] ?? 1, dilX: DIL_X[offset.dark] ?? 0, dx: mmToDots(offset.x), dy: mmToDots(offset.y) }
           )
         )
       );

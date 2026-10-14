@@ -12,6 +12,10 @@ const SUPER = 4; // se dibuja 4 veces más grande y se reduce, para que el conto
 
 // Umbral (0-255): más alto = más puntos negros = trazo más grueso
 export const THRESHOLDS = [120, 150, 180, 210];
+// Un cabezal térmico quema menos los trazos horizontales (muchos puntos a la vez en una pasada) que los verticales.
+// Se compensa agregando puntos negros hacia abajo (DIL_Y) y hacia la derecha (DIL_X) de cada punto negro.
+export const DIL_Y = [0, 1, 1, 2];
+export const DIL_X = [0, 0, 0, 1];
 
 const loadImage = (src) =>
   new Promise((resolve, reject) => {
@@ -22,7 +26,7 @@ const loadImage = (src) =>
   });
 
 /** Devuelve un PNG (data URL) de 812 x 406 en blanco y negro puro. dx/dy: desplazamiento en puntos. */
-export async function labelBitmap(props, { threshold = 150, dx = 0, dy = 0 } = {}) {
+export async function labelBitmap(props, { threshold = 150, dx = 0, dy = 0, dilY = 0, dilX = 0 } = {}) {
   const markup = renderToStaticMarkup(
     React.createElement(IngredientLabel, { ...props, width: BITMAP_W * SUPER, height: BITMAP_H * SUPER })
   );
@@ -55,6 +59,17 @@ export async function labelBitmap(props, { threshold = 150, dx = 0, dy = 0 } = {
       const v = lum >= 255 - threshold ? 0 : 255;
       d[i] = d[i + 1] = d[i + 2] = v;
       d[i + 3] = 255;
+    }
+    if (dilY || dilX) {
+      const black = new Uint8Array(BITMAP_W * BITMAP_H);
+      for (let i = 0; i < black.length; i++) black[i] = d[i * 4] === 0 ? 1 : 0;
+      for (let yy = 0; yy < BITMAP_H; yy++) {
+        for (let xx = 0; xx < BITMAP_W; xx++) {
+          if (!black[yy * BITMAP_W + xx]) continue;
+          for (let k = 1; k <= dilY && yy + k < BITMAP_H; k++) d[((yy + k) * BITMAP_W + xx) * 4] = d[((yy + k) * BITMAP_W + xx) * 4 + 1] = d[((yy + k) * BITMAP_W + xx) * 4 + 2] = 0;
+          for (let k = 1; k <= dilX && xx + k < BITMAP_W; k++) d[(yy * BITMAP_W + xx + k) * 4] = d[(yy * BITMAP_W + xx + k) * 4 + 1] = d[(yy * BITMAP_W + xx + k) * 4 + 2] = 0;
+        }
+      }
     }
     ctx.putImageData(px, 0, 0);
     return out.toDataURL('image/png');
