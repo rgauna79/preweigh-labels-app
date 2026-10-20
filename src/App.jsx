@@ -82,7 +82,7 @@ function Section({ title, action, children }) {
 export default function App({ onOpenIngredients }) {
   const { lang, setLang, t } = useLang();
   const [data, setData] = useState(() => ({ ...EMPTY, ...load('lm.data', {}), date: todayStr() }));
-  const [job, setJob] = useState(() => ({ pallets: 1, withMissing: false, withRefer: false, copies: 1, ...load('lm.job', {}) }));
+  const [job, setJob] = useState(() => ({ pallets: 1, withMissing: false, withRefer: false, ...load('lm.job', {}) }));
   const [formulas, setFormulas] = useState([]);
   const [showFormulas, setShowFormulas] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -242,8 +242,7 @@ export default function App({ onOpenIngredients }) {
     mis: included.filter((x) => x.key.startsWith('mis')).length,
     ref: included.filter((x) => x.key.startsWith('ref')).length,
   });
-  const copies = job.copies || 1;
-  const totalSheets = included.length * copies;
+  const totalSheets = included.length; // las copias se eligen en el diálogo de impresión
   const partial = included.length < sheets.length;
 
   const printSet = () => (checks.length ? setConfirmChecks(checks) : doPrint());
@@ -534,12 +533,6 @@ export default function App({ onOpenIngredients }) {
             {emptyFields.length > 0 && (
               <p className="text-xs font-semibold text-amber-700">{t('empty.prefix', { list: emptyFields.join(', ') })}</p>
             )}
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
-              <span className="mr-auto">{t('copies')}</span>
-              <button onClick={() => setJob((j) => ({ ...j, copies: Math.max(1, copies - 1) }))} aria-label="−" className="rounded-md border border-slate-300 bg-white p-1.5 hover:bg-slate-100"><Minus size={12} /></button>
-              <span className="w-5 text-center text-sm font-extrabold text-slate-900">{copies}</span>
-              <button onClick={() => setJob((j) => ({ ...j, copies: Math.min(3, copies + 1) }))} aria-label="+" className="rounded-md border border-slate-300 bg-white p-1.5 hover:bg-slate-100"><Plus size={12} /></button>
-            </div>
             <button onClick={() => printSet()} disabled={totalSheets === 0} className="w-full bg-violet-600 hover:bg-violet-700 disabled:bg-slate-300 text-white font-extrabold py-3.5 rounded-lg flex items-center justify-center gap-2 shadow-md transition-colors">
               <Printer size={20} /> {totalSheets === 0 ? t('sel.none') : totalSheets === 1 ? t('print.one') : t('print.many', { n: totalSheets })}
             </button>
@@ -647,11 +640,10 @@ export default function App({ onOpenIngredients }) {
       {confirmChecks && <PrintConfirm checks={confirmChecks} total={totalSheets} breakdown={breakdown} onFix={() => setConfirmChecks(null)} onPrint={doPrint} />}
       <div className="app-root"><Toast toast={toast} onUndo={() => toast?.undo && restore(toast.undo)} /></div>
 
-      {/* SALIDA DE IMPRESIÓN: una hoja Letter horizontal por etiqueta (y por copia) */}
+      {/* SALIDA DE IMPRESIÓN: una hoja Letter horizontal por etiqueta */}
       <div className="print-root">
-        {Array.from({ length: copies }).flatMap((_, c) =>
-          included.map(({ key, Comp, data: d }) => (
-            <div key={`${c}-${key}`} className="sheet">
+        {included.map(({ key, Comp, data: d }) => (
+            <div key={key} className="sheet">
               <div style={{ position: 'relative', width: LABEL_W, height: LABEL_H }}>
                 <Comp data={d} logo={logo} />
                 {stamp && printedAt && (() => {
@@ -660,8 +652,7 @@ export default function App({ onOpenIngredients }) {
                 })()}
               </div>
             </div>
-          ))
-        )}
+          ))}
       </div>
     </>
   );
