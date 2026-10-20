@@ -21,7 +21,7 @@ const save = (key, value) => {
 };
 
 let uid = 0;
-const newRow = (seq = '', part = '', desc = '') => ({ id: ++uid, seq: String(seq), part, desc, checked: true });
+const newRow = (seq = '', part = '', desc = '') => ({ id: ++uid, seq: String(seq), part, desc, lp: part, checked: true });
 const nextSeq = (rows) => String((Math.floor(Math.max(0, ...rows.map((r) => parseInt(r.seq, 10) || 0)) / 10) + 1) * 10);
 
 /** Convierte lo pegado desde Excel ("part⇥descripción" por línea) en filas con secuencia 10, 20, 30… */
@@ -128,13 +128,13 @@ export default function IngredientLabels({ onBack }) {
   const addRow = () => setRows((rs) => [...rs, newRow(rs.length ? nextSeq(rs) : 10)]);
   const removeRow = (id) => setRows((rs) => rs.filter((r) => r.id !== id));
 
-  /** Al salir del número de parte: si la descripción está vacía, se busca en el catálogo. */
+  /** Al salir del número de parte o con Enter: si cambió (o la descripción está vacía) se busca en el catálogo y se reemplaza la descripción. */
   const lookupPart = async (row) => {
     const part = norm(row.part);
-    if (!part || norm(row.desc)) return;
+    if (!part || (part === row.lp && norm(row.desc))) return;
     try {
       const item = await fetchItem(part);
-      if (item?.description) patch(row.id, { desc: item.description });
+      patch(row.id, item?.description ? { desc: item.description, lp: part } : { lp: part });
     } catch { /* sin conexión: se escribe a mano */ }
   };
 
@@ -365,7 +365,8 @@ export default function IngredientLabels({ onBack }) {
                         <td className="px-1 py-1"><input value={r.seq} inputMode="numeric" maxLength={5} className={`${inputCls} ${stateCls(rowState(r.id, 'seq'))}`}
                           onChange={(e) => patch(r.id, { seq: e.target.value.replace(/\D/g, '') })} /></td>
                         <td className="px-1 py-1"><input value={r.part} maxLength={30} title={rowState(r.id, 'part') !== 'ok' ? t(rowState(r.id, 'part') === 'cut' ? 'ing.vCut' : 'ing.vSmall', { field: t('ing.part') }) : ''} className={`${inputCls} ${showPart ? stateCls(rowState(r.id, 'part')) : ''}`}
-                          onChange={(e) => patch(r.id, { part: e.target.value })} onBlur={() => lookupPart(r)} /></td>
+                          onChange={(e) => patch(r.id, { part: e.target.value })} onBlur={() => lookupPart(r)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); lookupPart(r); } }} /></td>
                         <td className="px-1 py-1"><input value={r.desc} maxLength={80} title={rowState(r.id, 'desc') !== 'ok' ? t(rowState(r.id, 'desc') === 'cut' ? 'ing.vCut' : 'ing.vSmall', { field: t('ing.desc') }) : ''} className={`${inputCls} ${stateCls(rowState(r.id, 'desc'))}`}
                           onChange={(e) => patch(r.id, { desc: e.target.value })} /></td>
                         <td className="pr-2">
