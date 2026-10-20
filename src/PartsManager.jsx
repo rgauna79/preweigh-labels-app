@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2, ClipboardPaste, Download, FileUp, Loader2,
 import Modal from './Modal.jsx';
 import { useLang } from './i18n.js';
 import { fetchAllItems, writeItems } from './api.js';
+import { resetCatalog } from './catalog.js';
 import { downloadText } from './formulas.js';
 import { DESC_MAX, PART_MAX, oddPart, parsePartsText } from './partsParse.js';
 import Papa from 'papaparse';
@@ -35,7 +36,7 @@ export default function PartsManager({ onClose, onChanged }) {
 
   const run = async (fn, okText) => {
     setBusy(true);
-    try { await fn(); setNotice(okText ? { type: 'success', text: okText } : null); onChanged?.(); } catch (e) { setNotice({ type: 'error', text: e.message }); } finally { setBusy(false); }
+    try { await fn(); setNotice(okText ? { type: 'success', text: okText } : null); resetCatalog(); onChanged?.(); } catch (e) { setNotice({ type: 'error', text: e.message }); } finally { setBusy(false); }
   };
 
   const saveRow = (item, description) => {
