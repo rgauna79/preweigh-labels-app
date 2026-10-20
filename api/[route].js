@@ -119,7 +119,7 @@ function cleanHistory(e) {
     if (out[k].length > HLEN[k]) throw new ApiError(400, 'too_long', `${k} is too long (max ${HLEN[k]})`);
   }
   if (!out.formula) throw new ApiError(400, 'bad_op', 'formula is required');
-  out.pallets = Math.min(6, Math.max(1, parseInt(e?.pallets, 10) || 1));
+  out.pallets = Math.min(15, Math.max(1, parseInt(e?.pallets, 10) || 1));
   out.withMissing = Boolean(e?.withMissing);
   out.withRefer = Boolean(e?.withRefer);
   out.ts = Date.now();

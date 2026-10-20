@@ -54,6 +54,19 @@ export default function IngredientLabels({ onBack }) {
   const [showPart, setShowPart] = useState(() => load('lm.ing.showPart', true)); // imprimir el número de parte en Item Code
   const [preparing, setPreparing] = useState(false);
   const [copies, setCopies] = useState(1);
+  const [seqText, setSeqText] = useState('');
+  // "30" o "20, 40-60": marca solo esas secuencias
+  const applySeqs = (txt) => {
+    setSeqText(txt);
+    const set = new Set();
+    txt.split(/[,;\s]+/).filter(Boolean).forEach((p) => {
+      const m = p.match(/^(\d+)(?:-(\d+))?$/);
+      if (!m) return;
+      const a = +m[1]; const b = m[2] ? +m[2] : a;
+      for (let i = Math.min(a, b); i <= Math.max(a, b) && i <= 99999; i++) set.add(i);
+    });
+    setRows((rs) => rs.map((r) => ({ ...r, checked: set.size ? set.has(parseInt(r.seq, 10)) : true })));
+  };
   const [offset, setOffset] = useState(() => ({ x: 2, y: 1, dark: 0, ...load('lm.ing.offset', {}) })); // calibración en mm
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState('');
@@ -328,18 +341,18 @@ export default function IngredientLabels({ onBack }) {
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-500">
                     <tr>
-                      <th className="w-8 py-2 pl-3 text-left"><span className="sr-only">{t('ing.print')}</span></th>
+                      <th className="w-14 py-2 pl-3 text-left">{t('ing.print')}</th>
                       <th className="w-20 px-1 text-left">Seq #</th>
                       <th className="w-40 px-1 text-left">{t('ing.part')}</th>
                       <th className="px-1 text-left">{t('ing.desc')}</th>
-                      <th className="w-8" />
+                      <th className="w-24" />
                     </tr>
                   </thead>
                   <tbody>
                     {rows.map((r, i) => (
                       <tr key={r.id} onClick={() => setPreview(i)} className={`border-t border-slate-100 ${i === preview ? 'bg-violet-50' : ''}`}>
                         <td className="py-1 pl-3">
-                          <input type="checkbox" checked={r.checked} onChange={(e) => patch(r.id, { checked: e.target.checked })} aria-label={t('ing.print')} />
+                          <input type="checkbox" checked={r.checked} onChange={(e) => patch(r.id, { checked: e.target.checked })} aria-label={`${t('ing.print')} Seq ${r.seq}`} className="h-5 w-5 accent-violet-600" />
                         </td>
                         <td className="px-1 py-1"><input value={r.seq} inputMode="numeric" maxLength={5} className={`${inputCls} ${stateCls(rowState(r.id, 'seq'))}`}
                           onChange={(e) => patch(r.id, { seq: e.target.value.replace(/\D/g, '') })} /></td>
@@ -347,7 +360,9 @@ export default function IngredientLabels({ onBack }) {
                           onChange={(e) => patch(r.id, { part: e.target.value })} onBlur={() => lookupPart(r)} /></td>
                         <td className="px-1 py-1"><input value={r.desc} maxLength={80} title={rowState(r.id, 'desc') !== 'ok' ? t(rowState(r.id, 'desc') === 'cut' ? 'ing.vCut' : 'ing.vSmall', { field: t('ing.desc') }) : ''} className={`${inputCls} ${stateCls(rowState(r.id, 'desc'))}`}
                           onChange={(e) => patch(r.id, { desc: e.target.value })} /></td>
-                        <td className="pr-2">
+                        <td className="whitespace-nowrap pr-2">
+                          <button onClick={(e) => { e.stopPropagation(); setRows((rs) => rs.map((x) => ({ ...x, checked: x.id === r.id }))); }} title={t('ing.only')}
+                            className="rounded px-1.5 py-0.5 text-[11px] font-bold normal-case text-violet-700 hover:bg-violet-100">{t('ing.only')}</button>
                           <button onClick={() => removeRow(r.id)} title={t('ing.remove')} className="rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"><Trash2 size={14} /></button>
                         </td>
                       </tr>
@@ -414,9 +429,14 @@ export default function IngredientLabels({ onBack }) {
                 <input type="number" min={1} max={20} value={copies} className={`${inputCls} !w-16`}
                   onChange={(e) => setCopies(Math.min(20, Math.max(1, parseInt(e.target.value, 10) || 1)))} />
                 <div className="flex-1" />
-                <button onClick={() => setRows((rs) => rs.map((r) => ({ ...r, checked: true })))} className="text-xs font-bold text-violet-700 hover:underline">{t('ing.all')}</button>
-                <button onClick={() => setRows((rs) => rs.map((r) => ({ ...r, checked: false })))} className="text-xs font-bold text-violet-700 hover:underline">{t('ing.none')}</button>
+                <button onClick={() => { setSeqText(''); setRows((rs) => rs.map((r) => ({ ...r, checked: true }))); }} className="text-xs font-bold text-violet-700 hover:underline">{t('ing.all')}</button>
+                <button onClick={() => { setSeqText(''); setRows((rs) => rs.map((r) => ({ ...r, checked: false }))); }} className="text-xs font-bold text-violet-700 hover:underline">{t('ing.none')}</button>
               </div>
+              <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                <span className="shrink-0">{t('ing.seqs')}</span>
+                <input value={seqText} placeholder={t('ing.seqsHint')} className={`${inputCls} flex-1`} onChange={(e) => applySeqs(e.target.value)} />
+              </label>
+              <p className="text-xs font-semibold text-slate-500">{t('ing.calc', { s: selected.length, b: batchList.length, c: copies, n: total })}</p>
               <label className="flex cursor-pointer items-center gap-2 border-t border-slate-100 pt-3 text-xs font-bold text-slate-600">
                 <input type="checkbox" checked={showPart} onChange={(e) => { setShowPart(e.target.checked); save('lm.ing.showPart', e.target.checked); }} />
                 {t('ing.showPart')}
