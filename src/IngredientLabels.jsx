@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Check, ClipboardPaste, FileUp, Plus, Printer, Save, Trash2, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, ClipboardPaste, Database, FileUp, Plus, Printer, Save, Trash2, X } from 'lucide-react';
 import Papa from 'papaparse';
 import { useLang } from './i18n.js';
 import Toast from './Toast.jsx';
 import IngredientLabel, { checkLabel } from './IngredientLabel.jsx';
 import { DIL_X, DIL_Y, DPI, THRESHOLDS, labelBitmap, testBitmap } from './rasterize.js';
+import PartsManager from './PartsManager.jsx';
 import { fetchBom, fetchBomIndex, fetchFormulas, fetchItem, writeBom, writeFormulas, writeItems } from './api.js';
 
 const inputCls =
@@ -55,6 +56,7 @@ export default function IngredientLabels({ onBack }) {
   const [preparing, setPreparing] = useState(false);
   const [copies, setCopies] = useState(1);
   const [seqText, setSeqText] = useState('');
+  const [showParts, setShowParts] = useState(false);
   // "30" o "20, 40-60": marca solo esas secuencias
   const applySeqs = (txt) => {
     setSeqText(txt);
@@ -300,6 +302,9 @@ export default function IngredientLabels({ onBack }) {
             <h1 className="text-[17px] font-extrabold leading-tight">{t('ing.title')}</h1>
             <p className="text-xs text-violet-200">{t('ing.subtitle')}</p>
           </div>
+          <button onClick={() => setShowParts(true)} className="flex items-center gap-1.5 rounded-md bg-white/15 px-2.5 py-1.5 text-xs font-bold hover:bg-white/25">
+            <Database size={14} /> {t('parts.open')}
+          </button>
           <div className="flex items-center rounded-md bg-white/15 p-0.5 text-[11px] font-extrabold" role="group" aria-label={t('lang')}>
             {['en', 'es'].map((l) => (
               <button key={l} onClick={() => setLang(l)} aria-pressed={lang === l}
@@ -511,6 +516,7 @@ export default function IngredientLabels({ onBack }) {
             ))
           )}
       </div>
+      {showParts && <PartsManager onClose={() => setShowParts(false)} />}
     </>
   );
 }

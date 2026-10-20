@@ -148,3 +148,10 @@ export async function writeItems(op, items) {
   );
   return res.json();
 }
+
+/** Catálogo completo: [{ part, description }] */
+export async function fetchAllItems() {
+  const res = await call('items?all=1', { cache: 'no-store' });
+  if (!res.ok) throw new Error(tr('err.server'));
+  return (await res.json()).items || [];
+}

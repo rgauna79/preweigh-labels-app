@@ -187,6 +187,7 @@ export default async function handler(req, res) {
     // Catálogo de ingredientes: GET ?part=X -> un ingrediente (404 si no existe) · GET -> { count } · POST { op, items }
     if (route === 'items') {
       if (req.method === 'GET') {
+        if (req.query.all) return send(200, { items: (await redis('HVALS', ITEMS_KEY)).map((r) => JSON.parse(r)) }); // catálogo completo (unos cientos de KB)
         const part = text(req.query.part);
         if (!part) return send(200, { count: await redis('HLEN', ITEMS_KEY) });
         const raw = await redis('HGET', ITEMS_KEY, part.toLowerCase());
