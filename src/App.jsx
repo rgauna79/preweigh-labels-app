@@ -485,18 +485,18 @@ export default function App({ onOpenIngredients }) {
               </div>
             </Section>
 
-            <Section title={t('sec.pallets')}>
-              <div className="flex items-center gap-2" role="group" aria-label={t('sec.pallets')}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{t('sec.pallets')} <span className="font-semibold normal-case tracking-normal text-slate-400">· {t('pallets.max', { n: MAX_PALLETS })}</span></h2>
+              <div className="flex items-center gap-1" role="group" aria-label={t('sec.pallets')}>
                 <button onClick={() => setJob((j) => ({ ...j, pallets: Math.max(1, j.pallets - 1) }))} disabled={job.pallets <= 1} aria-label="−"
-                  className="rounded-md border border-slate-300 bg-white p-2.5 hover:bg-slate-100 disabled:opacity-40"><Minus size={14} /></button>
+                  className="rounded border border-slate-300 bg-white p-1 hover:bg-slate-100 disabled:opacity-40"><Minus size={12} /></button>
                 <input type="number" min={1} max={MAX_PALLETS} value={job.pallets} aria-label={t('sec.pallets')}
                   onChange={(e) => setJob((j) => ({ ...j, pallets: Math.min(MAX_PALLETS, Math.max(1, parseInt(e.target.value, 10) || 1)) }))}
-                  className="w-16 rounded-md border border-slate-300 py-2 text-center text-lg font-extrabold text-violet-700" />
+                  className="w-10 rounded border border-slate-300 py-0.5 text-center text-sm font-extrabold text-violet-700" />
                 <button onClick={() => setJob((j) => ({ ...j, pallets: Math.min(MAX_PALLETS, j.pallets + 1) }))} disabled={job.pallets >= MAX_PALLETS} aria-label="+"
-                  className="rounded-md border border-slate-300 bg-white p-2.5 hover:bg-slate-100 disabled:opacity-40"><Plus size={14} /></button>
-                <span className="text-xs font-semibold text-slate-400">{t('pallets.max', { n: MAX_PALLETS })}</span>
+                  className="rounded border border-slate-300 bg-white p-1 hover:bg-slate-100 disabled:opacity-40"><Plus size={12} /></button>
               </div>
-            </Section>
+            </div>
 
             <Section title={t('sec.missing')}>
               <label className="flex items-center gap-2 text-sm font-semibold mb-2 cursor-pointer">
