@@ -4,13 +4,14 @@ import { useLang } from './i18n.js';
 import FormulaManager from './FormulaManager.jsx';
 import ListField from './ListField.jsx';
 import Modal from './Modal.jsx';
+import PartsManager from './PartsManager.jsx';
 import Toast from './Toast.jsx';
 import HistoryModal from './HistoryModal.jsx';
 import SettingsModal from './SettingsModal.jsx';
 import PrintConfirm from './PrintConfirm.jsx';
 import { collectChecks, findIdUse, fmtStamp } from './checks.js';
 import { LIMITS } from './limits.js';
-import { addHistory, deleteLogo, fetchFormulas, fetchHistory, fetchLogo, shrinkImage, uploadLogo, writeFormulas } from './api.js';
+import { addHistory, deleteLogo, fetchFormulas, fetchHistory, fetchItemCount, fetchLogo, shrinkImage, uploadLogo, writeFormulas } from './api.js';
 import { LABEL_H, LABEL_W, batchesText, buildSheets, stripId, toItems } from './Labels.jsx';
 
 const MAX_PALLETS = 15; // tope de pallets por batch (lo normal es 1-3; algunos kits llegan a 5-6)
@@ -85,7 +86,11 @@ export default function App({ onOpenIngredients }) {
   const [job, setJob] = useState(() => ({ pallets: 1, withMissing: false, withRefer: false, ...load('lm.job', {}) }));
   const [formulas, setFormulas] = useState([]);
   const [showFormulas, setShowFormulas] = useState(false);
+  const [showParts, setShowParts] = useState(false);
+  const [partsCount, setPartsCount] = useState(null);
+  const refreshPartsCount = () => fetchItemCount().then(setPartsCount).catch(() => {});
   const [showSettings, setShowSettings] = useState(false);
+  useEffect(() => { if (showSettings) refreshPartsCount(); }, [showSettings]);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState([]);
   const [historyError, setHistoryError] = useState('');
@@ -585,6 +590,7 @@ export default function App({ onOpenIngredients }) {
       {showSettings && (
         <SettingsModal
           formulasCount={formulas.length} onOpenFormulas={() => { setShowSettings(false); setShowFormulas(true); }}
+          partsCount={partsCount} onOpenParts={() => { setShowSettings(false); setShowParts(true); }}
           logo={logo} onLogoFile={changeLogo} onRemoveLogo={removeLogo}
           by={by} onBy={setBy} stamp={stamp} onStamp={setStamp} onClose={() => setShowSettings(false)}
         />
@@ -592,6 +598,7 @@ export default function App({ onOpenIngredients }) {
       {showFormulas && (
         <FormulaManager formulas={formulas} onSave={saveEntry} onDelete={deleteEntry} onImport={importEntries} onClose={() => setShowFormulas(false)} />
       )}
+      {showParts && <PartsManager onClose={() => setShowParts(false)} />}
       {showHistory && <HistoryModal history={history} error={historyError} onLoad={loadFromHistory} onClose={() => setShowHistory(false)} />}
       {showPick && (
         <Modal onClose={() => setShowPick(false)} className="max-w-md" labelledBy="pick-title">

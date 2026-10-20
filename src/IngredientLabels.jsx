@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Check, ClipboardPaste, Database, FileUp, Plus, Printer, Save, Trash2, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, ClipboardPaste, FileUp, Plus, Printer, Save, Trash2, X } from 'lucide-react';
 import Papa from 'papaparse';
 import { useLang } from './i18n.js';
 import Toast from './Toast.jsx';
 import IngredientLabel, { checkLabel } from './IngredientLabel.jsx';
 import { DIL_X, DIL_Y, DPI, THRESHOLDS, labelBitmap, testBitmap } from './rasterize.js';
-import PartsManager from './PartsManager.jsx';
 import { fetchBom, fetchBomIndex, fetchFormulas, fetchItem, writeBom, writeFormulas, writeItems } from './api.js';
 
 const inputCls =
@@ -54,7 +53,6 @@ export default function IngredientLabels({ onBack }) {
   const [batchTo, setBatchTo] = useState(() => (isNum(linked.batch) ? norm(linked.batch) : ''));
   const [showPart, setShowPart] = useState(() => load('lm.ing.showPart', true)); // imprimir el número de parte en Item Code
   const [preparing, setPreparing] = useState(false);
-  const [copies, setCopies] = useState(1);
   const [seqDraft, setSeqDraft] = useState(null); // texto mientras se escribe; null = se muestra lo marcado
   // "30" o "20, 40-60": marca solo esas secuencias
   const applySeqs = (txt) => {
@@ -77,7 +75,6 @@ export default function IngredientLabels({ onBack }) {
     flush();
     return out.join(', ');
   })();
-  const [showParts, setShowParts] = useState(false);
   const [offset, setOffset] = useState(() => ({ x: 2, y: 1, dark: 0, ...load('lm.ing.offset', {}) })); // calibración en mm
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState('');
@@ -216,10 +213,10 @@ export default function IngredientLabels({ onBack }) {
     const hi = Math.min(Math.max(a, b), lo + 99);
     return Array.from({ length: hi - lo + 1 }, (_, i) => String(lo + i));
   })();
-  const total = selected.length * batchList.length * copies;
+  const total = selected.length * batchList.length; // las copias se eligen en el diálogo de impresión
   const linkedTotal = isNum(linked.batchTotal) ? parseInt(linked.batchTotal, 10) : 0;
 
-  const printDotTest = () => setPrintJob({ images: [testBitmap()], copies: 1 });
+  const printDotTest = () => setPrintJob({ images: [testBitmap()] });
 
   const doPrint = async (list, test = false) => {
     setStatus('');
@@ -234,7 +231,7 @@ export default function IngredientLabels({ onBack }) {
       for (const { r, b } of jobs) { // de a una: cada bitmap usa un lienzo grande
         images.push(await labelBitmap({ name: test ? 'FORMULA NAME' : title, part: showPart ? r.part : '', seq: r.seq, desc: r.desc, batch: b }, opts));
       }
-      setPrintJob({ images, copies: test ? 1 : copies });
+      setPrintJob({ images });
     } catch (e) {
       setStatus(e.message);
     } finally {
@@ -311,9 +308,6 @@ export default function IngredientLabels({ onBack }) {
             <h1 className="text-[17px] font-extrabold leading-tight">{t('ing.title')}</h1>
             <p className="text-xs text-violet-200">{t('ing.subtitle')}</p>
           </div>
-          <button onClick={() => setShowParts(true)} className="flex items-center gap-1.5 rounded-md bg-white/15 px-2.5 py-1.5 text-xs font-bold hover:bg-white/25">
-            <Database size={14} /> {t('parts.open')}
-          </button>
           <div className="flex items-center rounded-md bg-white/15 p-0.5 text-[11px] font-extrabold" role="group" aria-label={t('lang')}>
             {['en', 'es'].map((l) => (
               <button key={l} onClick={() => setLang(l)} aria-pressed={lang === l}
@@ -437,9 +431,6 @@ export default function IngredientLabels({ onBack }) {
 
             <div className="w-full max-w-[640px] space-y-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
               <div className="flex items-center gap-3">
-                <label className="text-xs font-bold text-slate-600">{t('ing.copies')}</label>
-                <input type="number" min={1} max={20} value={copies} className={`${inputCls} !w-16`}
-                  onChange={(e) => setCopies(Math.min(20, Math.max(1, parseInt(e.target.value, 10) || 1)))} />
                 <div className="flex-1" />
                 <button onClick={() => { setSeqDraft(null); setRows((rs) => rs.map((r) => ({ ...r, checked: true }))); }} className="text-xs font-bold text-violet-700 hover:underline">{t('ing.all')}</button>
                 <button onClick={() => { setSeqDraft(null); setRows((rs) => rs.map((r) => ({ ...r, checked: false }))); }} className="text-xs font-bold text-violet-700 hover:underline">{t('ing.none')}</button>
@@ -448,7 +439,7 @@ export default function IngredientLabels({ onBack }) {
                 <span className="shrink-0">{t('ing.seqs')}</span>
                 <input value={seqDraft ?? seqSummary} placeholder={t('ing.seqsHint')} className={`${inputCls} flex-1`} onChange={(e) => applySeqs(e.target.value)} onBlur={() => setSeqDraft(null)} />
               </label>
-              <p className="text-xs font-semibold text-slate-500">{t('ing.calc', { s: selected.length, b: batchList.length, c: copies, n: total })}</p>
+              <p className="text-xs font-semibold text-slate-500">{t('ing.calc', { s: selected.length, b: batchList.length, n: total })}</p>
               <label className="flex cursor-pointer items-center gap-2 border-t border-slate-100 pt-3 text-xs font-bold text-slate-600">
                 <input type="checkbox" checked={showPart} onChange={(e) => { setShowPart(e.target.checked); save('lm.ing.showPart', e.target.checked); }} />
                 {t('ing.showPart')}
@@ -515,15 +506,12 @@ export default function IngredientLabels({ onBack }) {
       {/* SALIDA DE IMPRESIÓN: una página de 4 x 2 in por etiqueta */}
       <div className="ing-print">
         {printJob &&
-          Array.from({ length: printJob.copies }).flatMap((_, c) =>
-            printJob.images.map((src, i) => (
-              <div key={`${c}-${i}`} className="ing-sheet">
-                <img src={src} alt="" />
-              </div>
-            ))
-          )}
+          printJob.images.map((src, i) => (
+            <div key={i} className="ing-sheet">
+              <img src={src} alt="" />
+            </div>
+          ))}
       </div>
-      {showParts && <PartsManager onClose={() => setShowParts(false)} />}
     </>
   );
 }

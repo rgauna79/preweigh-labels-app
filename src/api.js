@@ -155,3 +155,10 @@ export async function fetchAllItems() {
   if (!res.ok) throw new Error(tr('err.server'));
   return (await res.json()).items || [];
 }
+
+/** Cuántas partes tiene el catálogo. */
+export async function fetchItemCount() {
+  const res = await call('items', { cache: 'no-store' });
+  if (!res.ok) throw new Error(tr('err.server'));
+  return (await res.json()).count;
+}
