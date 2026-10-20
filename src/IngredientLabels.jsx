@@ -55,11 +55,10 @@ export default function IngredientLabels({ onBack }) {
   const [showPart, setShowPart] = useState(() => load('lm.ing.showPart', true)); // imprimir el número de parte en Item Code
   const [preparing, setPreparing] = useState(false);
   const [copies, setCopies] = useState(1);
-  const [seqText, setSeqText] = useState('');
-  const [showParts, setShowParts] = useState(false);
+  const [seqDraft, setSeqDraft] = useState(null); // texto mientras se escribe; null = se muestra lo marcado
   // "30" o "20, 40-60": marca solo esas secuencias
   const applySeqs = (txt) => {
-    setSeqText(txt);
+    setSeqDraft(txt);
     const set = new Set();
     txt.split(/[,;\s]+/).filter(Boolean).forEach((p) => {
       const m = p.match(/^(\d+)(?:-(\d+))?$/);
@@ -69,6 +68,16 @@ export default function IngredientLabels({ onBack }) {
     });
     setRows((rs) => rs.map((r) => ({ ...r, checked: set.size ? set.has(parseInt(r.seq, 10)) : true })));
   };
+  // Lo marcado, resumido: 10, 20, 40-60 (vacío = todas)
+  const seqSummary = (() => {
+    if (rows.every((r) => r.checked)) return '';
+    const out = []; let run = [];
+    const flush = () => { if (run.length > 2) out.push(`${run[0]}-${run[run.length - 1]}`); else out.push(...run); run = []; };
+    rows.forEach((r) => { if (r.checked && /^\d+$/.test(r.seq)) run.push(r.seq); else flush(); });
+    flush();
+    return out.join(', ');
+  })();
+  const [showParts, setShowParts] = useState(false);
   const [offset, setOffset] = useState(() => ({ x: 2, y: 1, dark: 0, ...load('lm.ing.offset', {}) })); // calibración en mm
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState('');
@@ -350,7 +359,7 @@ export default function IngredientLabels({ onBack }) {
                       <th className="w-20 px-1 text-left">Seq #</th>
                       <th className="w-40 px-1 text-left">{t('ing.part')}</th>
                       <th className="px-1 text-left">{t('ing.desc')}</th>
-                      <th className="w-24" />
+                      <th className="w-8" />
                     </tr>
                   </thead>
                   <tbody>
@@ -365,9 +374,7 @@ export default function IngredientLabels({ onBack }) {
                           onChange={(e) => patch(r.id, { part: e.target.value })} onBlur={() => lookupPart(r)} /></td>
                         <td className="px-1 py-1"><input value={r.desc} maxLength={80} title={rowState(r.id, 'desc') !== 'ok' ? t(rowState(r.id, 'desc') === 'cut' ? 'ing.vCut' : 'ing.vSmall', { field: t('ing.desc') }) : ''} className={`${inputCls} ${stateCls(rowState(r.id, 'desc'))}`}
                           onChange={(e) => patch(r.id, { desc: e.target.value })} /></td>
-                        <td className="whitespace-nowrap pr-2">
-                          <button onClick={(e) => { e.stopPropagation(); setRows((rs) => rs.map((x) => ({ ...x, checked: x.id === r.id }))); }} title={t('ing.only')}
-                            className="rounded px-1.5 py-0.5 text-[11px] font-bold normal-case text-violet-700 hover:bg-violet-100">{t('ing.only')}</button>
+                        <td className="pr-2">
                           <button onClick={() => removeRow(r.id)} title={t('ing.remove')} className="rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"><Trash2 size={14} /></button>
                         </td>
                       </tr>
@@ -434,12 +441,12 @@ export default function IngredientLabels({ onBack }) {
                 <input type="number" min={1} max={20} value={copies} className={`${inputCls} !w-16`}
                   onChange={(e) => setCopies(Math.min(20, Math.max(1, parseInt(e.target.value, 10) || 1)))} />
                 <div className="flex-1" />
-                <button onClick={() => { setSeqText(''); setRows((rs) => rs.map((r) => ({ ...r, checked: true }))); }} className="text-xs font-bold text-violet-700 hover:underline">{t('ing.all')}</button>
-                <button onClick={() => { setSeqText(''); setRows((rs) => rs.map((r) => ({ ...r, checked: false }))); }} className="text-xs font-bold text-violet-700 hover:underline">{t('ing.none')}</button>
+                <button onClick={() => { setSeqDraft(null); setRows((rs) => rs.map((r) => ({ ...r, checked: true }))); }} className="text-xs font-bold text-violet-700 hover:underline">{t('ing.all')}</button>
+                <button onClick={() => { setSeqDraft(null); setRows((rs) => rs.map((r) => ({ ...r, checked: false }))); }} className="text-xs font-bold text-violet-700 hover:underline">{t('ing.none')}</button>
               </div>
               <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
                 <span className="shrink-0">{t('ing.seqs')}</span>
-                <input value={seqText} placeholder={t('ing.seqsHint')} className={`${inputCls} flex-1`} onChange={(e) => applySeqs(e.target.value)} />
+                <input value={seqDraft ?? seqSummary} placeholder={t('ing.seqsHint')} className={`${inputCls} flex-1`} onChange={(e) => applySeqs(e.target.value)} onBlur={() => setSeqDraft(null)} />
               </label>
               <p className="text-xs font-semibold text-slate-500">{t('ing.calc', { s: selected.length, b: batchList.length, c: copies, n: total })}</p>
               <label className="flex cursor-pointer items-center gap-2 border-t border-slate-100 pt-3 text-xs font-bold text-slate-600">
