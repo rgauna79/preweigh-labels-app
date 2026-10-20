@@ -3,6 +3,7 @@ import { AlertTriangle, BookmarkPlus, CheckCircle2, ChevronsRight, Clock, Eraser
 import { useLang } from './i18n.js';
 import FormulaManager from './FormulaManager.jsx';
 import ListField from './ListField.jsx';
+import Modal from './Modal.jsx';
 import Toast from './Toast.jsx';
 import HistoryModal from './HistoryModal.jsx';
 import SettingsModal from './SettingsModal.jsx';
@@ -125,6 +126,7 @@ export default function App({ onOpenIngredients }) {
       return [...rest, ...sheets.filter((x) => /^(pre|mis)\d+$/.test(x.key) && !set.has(parseInt(x.key.replace(/\D/g, ''), 10))).map((x) => x.key)];
     });
   };
+  const [showPick, setShowPick] = useState(false);
   const resetSelection = () => { setExcluded([]); setPalletFilter(''); };
 
   // --- Vista previa escalada al ancho disponible ---
@@ -532,32 +534,6 @@ export default function App({ onOpenIngredients }) {
             {emptyFields.length > 0 && (
               <p className="text-xs font-semibold text-amber-700">{t('empty.prefix', { list: emptyFields.join(', ') })}</p>
             )}
-            <div className="rounded-lg border border-slate-200 bg-white p-2.5">
-              <div className="mb-1.5 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                <span>{t('sel.title')}</span>
-                {partial && <button onClick={resetSelection} className="normal-case text-violet-700 hover:underline">{t('sel.all')}</button>}
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {[['pre', 'sel.pre'], ['mis', 'sel.mis'], ['ref1', 'sel.ref1'], ['ref2', 'sel.ref2']].map(([ty, lbl]) => {
-                  const keys = sheets.filter((x) => typeOf(x.key) === ty);
-                  if (!keys.length) return null;
-                  const on = keys.filter((x) => !excluded.includes(x.key)).length;
-                  return (
-                    <button key={ty} onClick={() => toggleType(ty)} aria-pressed={on > 0}
-                      className={`rounded-full border px-3 py-1 text-xs font-bold ${on === keys.length ? 'border-violet-500 bg-violet-50 text-violet-800' : on ? 'border-violet-300 bg-white text-violet-700' : 'border-slate-300 bg-white text-slate-400 line-through'}`}>
-                      {t(lbl)}{keys.length > 1 ? ` ${on}/${keys.length}` : ''}
-                    </button>
-                  );
-                })}
-              </div>
-              {job.pallets > 1 && (
-                <label className="mt-2 flex items-center gap-2 text-xs font-bold text-slate-600">
-                  <span className="shrink-0">{t('sel.pallets')}</span>
-                  <input value={palletFilter} onChange={(e) => applyPalletFilter(e.target.value)} placeholder={t('sel.palletsHint')} aria-label={t('sel.pallets')}
-                    className="min-w-0 flex-1 rounded-md border border-slate-300 px-2 py-1 text-sm font-semibold" />
-                </label>
-              )}
-            </div>
             <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
               <span className="mr-auto">{t('copies')}</span>
               <button onClick={() => setJob((j) => ({ ...j, copies: Math.max(1, copies - 1) }))} aria-label="−" className="rounded-md border border-slate-300 bg-white p-1.5 hover:bg-slate-100"><Minus size={12} /></button>
@@ -566,8 +542,12 @@ export default function App({ onOpenIngredients }) {
             </div>
             <button onClick={() => printSet()} disabled={totalSheets === 0} className="w-full bg-violet-600 hover:bg-violet-700 disabled:bg-slate-300 text-white font-extrabold py-3.5 rounded-lg flex items-center justify-center gap-2 shadow-md transition-colors">
               <Printer size={20} /> {totalSheets === 0 ? t('sel.none') : totalSheets === 1 ? t('print.one') : t('print.many', { n: totalSheets })}
-              {partial && totalSheets > 0 && <span className="text-xs font-bold opacity-80">({t('sel.of', { a: included.length, b: sheets.length })})</span>}
             </button>
+            {sheets.length > 1 && (
+              <button onClick={() => setShowPick(true)} className={`text-center text-xs font-bold hover:underline ${partial ? 'text-violet-700' : 'text-slate-500'}`}>
+                {partial ? t('sel.partial', { a: included.length, b: sheets.length }) : t('sel.allLink')}
+              </button>
+            )}
             <p className="text-center text-[11px] font-semibold text-slate-400">{t('credit')}</p>
           </footer>
         </aside>
@@ -594,11 +574,10 @@ export default function App({ onOpenIngredients }) {
           <div className="flex flex-col items-center gap-8 p-8">
             {sheets.map(({ key, label, Comp, data: d }) => (
               <div key={key} id={`sheet-${key}`} className="shrink-0 scroll-mt-16">
-                <label className="mb-2 flex cursor-pointer items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
-                  <input type="checkbox" checked={!excluded.includes(key)} onChange={() => toggleSheet(key)} className="h-4 w-4 accent-violet-600" aria-label={`${t('sel.include')}: ${t(label[0], label[1])}`} />
+                <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
                   {t(label[0], label[1])}
                   {excluded.includes(key) && <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] normal-case text-slate-600">{t('sel.skipped')}</span>}
-                </label>
+                </p>
                 <div style={{ width: LABEL_W * scale, height: LABEL_H * scale }} className={`shadow-xl bg-white transition-opacity ${excluded.includes(key) ? 'opacity-40' : ''}`}>
                   <div style={{ width: LABEL_W, height: LABEL_H, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
                     <Comp data={d} logo={logo} onLogoClick={() => setShowSettings(true)} />
@@ -621,6 +600,50 @@ export default function App({ onOpenIngredients }) {
         <FormulaManager formulas={formulas} onSave={saveEntry} onDelete={deleteEntry} onImport={importEntries} onClose={() => setShowFormulas(false)} />
       )}
       {showHistory && <HistoryModal history={history} error={historyError} onLoad={loadFromHistory} onClose={() => setShowHistory(false)} />}
+      {showPick && (
+        <Modal onClose={() => setShowPick(false)} className="max-w-md" labelledBy="pick-title">
+          <header className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+            <h2 id="pick-title" className="text-lg font-extrabold">{t('sel.title')}</h2>
+            {partial && <button onClick={resetSelection} className="text-xs font-bold text-violet-700 hover:underline">{t('sel.all')}</button>}
+          </header>
+          <div className="grid gap-4 overflow-y-auto p-5">
+            <div className="flex flex-wrap gap-1.5">
+              {[['pre', 'sel.pre'], ['mis', 'sel.mis'], ['ref1', 'sel.ref1'], ['ref2', 'sel.ref2']].map(([ty, lbl]) => {
+                const keys = sheets.filter((x) => typeOf(x.key) === ty);
+                if (!keys.length) return null;
+                const on = keys.filter((x) => !excluded.includes(x.key)).length;
+                return (
+                  <button key={ty} onClick={() => toggleType(ty)} aria-pressed={on > 0}
+                    className={`rounded-full border px-3 py-1 text-xs font-bold ${on === keys.length ? 'border-violet-500 bg-violet-50 text-violet-800' : on ? 'border-violet-300 bg-white text-violet-700' : 'border-slate-300 bg-white text-slate-400 line-through'}`}>
+                    {t(lbl)}{keys.length > 1 ? ` ${on}/${keys.length}` : ''}
+                  </button>
+                );
+              })}
+            </div>
+            {job.pallets > 1 && (
+              <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                <span className="shrink-0">{t('sel.pallets')}</span>
+                <input value={palletFilter} onChange={(e) => applyPalletFilter(e.target.value)} placeholder={t('sel.palletsHint')}
+                  className="min-w-0 flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm font-semibold" />
+              </label>
+            )}
+            <ul className="grid max-h-64 gap-0.5 overflow-y-auto">
+              {sheets.map(({ key, label }) => (
+                <li key={key}>
+                  <label className="flex cursor-pointer items-center gap-2.5 rounded px-2 py-1.5 text-sm font-semibold hover:bg-slate-50">
+                    <input type="checkbox" checked={!excluded.includes(key)} onChange={() => toggleSheet(key)} className="h-4 w-4 accent-violet-600" />
+                    {t(label[0], label[1])}
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <footer className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-5 py-3">
+            <span className="text-xs font-bold text-slate-500">{t('sel.of', { a: included.length, b: sheets.length })}</span>
+            <button autoFocus onClick={() => setShowPick(false)} className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-extrabold text-white hover:bg-violet-700">{t('sel.done')}</button>
+          </footer>
+        </Modal>
+      )}
       {confirmChecks && <PrintConfirm checks={confirmChecks} total={totalSheets} breakdown={breakdown} onFix={() => setConfirmChecks(null)} onPrint={doPrint} />}
       <div className="app-root"><Toast toast={toast} onUndo={() => toast?.undo && restore(toast.undo)} /></div>
 
