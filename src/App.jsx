@@ -11,7 +11,7 @@ import SettingsModal from './SettingsModal.jsx';
 import PrintConfirm from './PrintConfirm.jsx';
 import { collectChecks, findIdUse, fmtStamp } from './checks.js';
 import { LIMITS } from './limits.js';
-import { addHistory, deleteLogo, fetchFormulas, fetchHistory, fetchItemCount, fetchLogo, shrinkImage, uploadLogo, writeFormulas } from './api.js';
+import { addHistory, deleteLogo, fetchFormulas, fetchHistory, fetchItemCount, fetchRefer, saveRefer, fetchLogo, shrinkImage, uploadLogo, writeFormulas } from './api.js';
 import { LABEL_H, LABEL_W, batchesText, buildSheets, stripId, toItems } from './Labels.jsx';
 
 const MAX_PALLETS = 15; // tope de pallets por batch (lo normal es 1-3; algunos kits llegan a 5-6)
@@ -168,6 +168,7 @@ export default function App({ onOpenIngredients }) {
   };
 
   const norm = (s) => String(s ?? '').trim();
+  const tidy = (s) => String(s ?? '').split('\n').map((l) => l.trim()).filter(Boolean).join('\n');
 
   const applyFormula = (value) => {
     const match = formulas.find((f) => f.formula.toLowerCase() === norm(value).toLowerCase());
@@ -206,6 +207,30 @@ export default function App({ onOpenIngredients }) {
 
   const trimmedFormula = norm(data.formula);
   const saved = formulas.find((f) => f.formula.toLowerCase() === trimmedFormula.toLowerCase());
+
+  // Lista de refrigerados guardada de la fórmula: se carga sola si el campo está vacío
+  const [savedRefer, setSavedRefer] = useState(null); // texto guardado en el servidor para esta fórmula (null = no hay)
+  const skipRefer = useRef(''); // fórmula cargada desde el historial: no se rellena sola
+  const referRef = useRef('');
+  referRef.current = data.refer;
+  useEffect(() => {
+    setSavedRefer(null);
+    if (skipRefer.current && skipRefer.current !== trimmedFormula.toLowerCase()) skipRefer.current = '';
+    if (!trimmedFormula) return undefined;
+    let alive = true;
+    const id = setTimeout(async () => {
+      try {
+        const text = await fetchRefer(trimmedFormula);
+        if (!alive || text == null) return;
+        setSavedRefer(text);
+        if (skipRefer.current === trimmedFormula.toLowerCase() || norm(referRef.current)) return;
+        setData((d) => (norm(d.refer) ? d : { ...d, refer: text }));
+        setJob((j) => ({ ...j, withRefer: true }));
+        setStatus(t('refer.loaded', { f: trimmedFormula }), 'info');
+      } catch { /* sin conexión: se escribe a mano */ }
+    }, 400);
+    return () => { alive = false; clearTimeout(id); };
+  }, [trimmedFormula]); // eslint-disable-line react-hooks/exhaustive-deps
   const canSaveFormula = trimmedFormula && norm(data.name) && (!saved || saved.name !== norm(data.name));
   const entryFromForm = () => ({ formula: trimmedFormula, name: norm(data.name), ile: saved?.ile || '' });
 
@@ -264,6 +289,9 @@ export default function App({ onOpenIngredients }) {
       pallets: job.pallets, withMissing: job.withMissing, withRefer: job.withRefer,
       missing: job.withMissing ? data.missing : '', refer: job.withRefer ? data.refer : '', by: norm(by),
     };
+    if (job.withRefer && trimmedFormula && norm(data.refer) && tidy(data.refer) !== savedRefer) { // la lista de refrigerados queda guardada para esta fórmula
+      saveRefer(trimmedFormula, data.refer).then(() => setSavedRefer(tidy(data.refer))).catch(() => {});
+    }
     setHistory((h) => [{ ...entry, ts: Date.now() }, ...h]);
     addHistory(entry).catch(() => {}); // si falla, no impide imprimir
     setPrintedAt(Date.now());
@@ -296,6 +324,7 @@ export default function App({ onOpenIngredients }) {
     });
     resetSelection();
     setJob((j) => ({ ...j, pallets: h.pallets || 1, withMissing: Boolean(h.withMissing), withRefer: Boolean(h.withRefer) }));
+    skipRefer.current = norm(h.formula).toLowerCase();
     setShowHistory(false);
     showToast(t('toast.loaded', { f: h.formula, b: h.batches || h.batch || '—' }), snap);
   };
@@ -322,6 +351,19 @@ export default function App({ onOpenIngredients }) {
     showToast(t('toast.next', { b: n || '—' }), snap);
     idInput.current?.focus(); // lo siguiente que hay que escribir es el ID
   };
+
+  const clearList = (field) => {
+    if (!norm(data[field])) return;
+    const snap = snapshot();
+    setData((d) => ({ ...d, [field]: '' }));
+    showToast(t('toast.listCleared'), snap);
+  };
+  const clearBtn = (field) => (
+    <button onClick={() => clearList(field)} disabled={!norm(data[field])} title={t('clear.list')} aria-label={t('clear.list')}
+      className="rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400">
+      <Eraser size={15} />
+    </button>
+  );
 
   const newBatch = () => {
     const snap = snapshot();
@@ -502,7 +544,7 @@ export default function App({ onOpenIngredients }) {
               </div>
             </div>
 
-            <Section title={t('sec.missing')}>
+            <Section title={t('sec.missing')} action={clearBtn('missing')}>
               <label className="flex items-center gap-2 text-sm font-semibold mb-2 cursor-pointer">
                 <input type="checkbox" checked={job.withMissing} onChange={(e) => setJob((j) => ({ ...j, withMissing: e.target.checked }))} className="w-4 h-4 accent-rose-600" />
                 {t('job.missing')}
@@ -515,7 +557,12 @@ export default function App({ onOpenIngredients }) {
               )}
             </Section>
 
-            <Section title={t('sec.refer')}>
+            <Section title={t('sec.refer')} action={(
+              <span className="flex items-center gap-1.5">
+                {savedRefer != null && tidy(data.refer) === savedRefer && <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700" title={t('refer.savedHint')}>{t('refer.saved')}</span>}
+                {clearBtn('refer')}
+              </span>
+            )}>
               <label className="flex items-center gap-2 text-sm font-semibold mb-2 cursor-pointer">
                 <input type="checkbox" checked={job.withRefer} onChange={(e) => setJob((j) => ({ ...j, withRefer: e.target.checked }))} className="w-4 h-4 accent-sky-600" />
                 {t('job.refer')}

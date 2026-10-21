@@ -162,3 +162,17 @@ export async function fetchItemCount() {
   if (!res.ok) throw new Error(tr('err.server'));
   return (await res.json()).count;
 }
+
+/** Lista de refrigerados guardada para una fórmula (texto, una parte por línea) o null. */
+export async function fetchRefer(formula) {
+  const res = await call(`refer?formula=${encodeURIComponent(formula)}`, { cache: 'no-store' });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(tr('err.server'));
+  return (await res.json()).refer;
+}
+
+/** Guarda la lista de refrigerados de la fórmula (abierto, como el historial; no pide PIN). */
+export async function saveRefer(formula, refer) {
+  const res = await call('refer', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ formula, refer }) });
+  if (!res.ok) throw new Error(tr('err.server'));
+}

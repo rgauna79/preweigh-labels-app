@@ -4,6 +4,7 @@
 //   POST /api/formulas  -> { op: 'add' | 'upsert' | 'delete' | 'replace', items: [...] }
 //   GET  /api/logo      -> { dataUrl }  (404 si no hay)   PUT -> { dataUrl }   DELETE
 //   GET  /api/history   -> últimas impresiones           POST -> { entry }
+//   GET  /api/refer?formula=X                      lista de refrigerados guardada de una fórmula (POST la guarda al imprimir)
 //   GET  /api/items?part=X | /api/boms?formula=X   catálogo de ingredientes y lista de ingredientes por fórmula (etiquetas)
 //   GET  /api/auth      -> { pinRequired }                POST valida el PIN
 // Si existe la variable EDIT_PIN, todo cambio (salvo "add" y registrar historial) exige el header x-edit-pin.
@@ -23,6 +24,7 @@ const MAX_LOGO = 1.5 * 1024 * 1024; // caracteres del dataURL
 
 const ITEMS_KEY = 'lm:i'; // hash: part number -> { part, description }  (catálogo de ingredientes)
 const BOMS_KEY = 'lm:b'; // hash: fórmula -> { formula, rows: [{ seq, part, desc }] }  (etiquetas de ingredientes)
+const REFER_KEY = 'lm:r'; // hash: fórmula -> { formula, refer }  (lista de refrigerados guardada al imprimir)
 const MAX_ITEMS = 30000;
 const MAX_ROWS = 80;
 const IL = { part: 30, desc: 80 };
@@ -251,6 +253,30 @@ export default async function handler(req, res) {
         await redisTx([['HSET', BOMS_KEY, key, JSON.stringify(bom)], ...learn]);
       }
       return send(200, bom);
+    }
+
+    // Lista de refrigerados por fórmula: GET ?formula=X (404 si no hay) · POST { formula, refer } guarda (sin PIN, igual que el historial) · POST { op:'delete', formula } borra (con PIN)
+    if (route === 'refer') {
+      if (req.method === 'GET') {
+        const raw = await redis('HGET', REFER_KEY, text(req.query.formula).toLowerCase());
+        return raw ? send(200, JSON.parse(raw)) : fail(404, 'not_found', 'Not found');
+      }
+      if (req.method !== 'POST') return fail(405, 'method', 'Method not allowed');
+      const b = body();
+      const formula = text(b.formula);
+      if (!formula || formula.length > LEN.formula) throw new ApiError(400, 'too_long', 'Invalid formula');
+      const key = formula.toLowerCase();
+      if (b.op === 'delete') {
+        if (!pinOk) return denied();
+        await redis('HDEL', REFER_KEY, key);
+        return send(200, { ok: true });
+      }
+      const refer = String(b.refer ?? '').split('\n').map((l) => l.trim()).filter(Boolean).join('\n');
+      if (!refer) return fail(400, 'empty', 'Empty list');
+      if (refer.length > HLEN.refer) throw new ApiError(400, 'too_long', `refer is too long (max ${HLEN.refer})`);
+      if ((await redis('HEXISTS', REFER_KEY, key)) !== 1 && (await redis('HLEN', REFER_KEY)) >= MAX_FORMULAS) throw new ApiError(400, 'too_many', 'Too many saved lists');
+      await redis('HSET', REFER_KEY, key, JSON.stringify({ formula, refer }));
+      return send(200, { formula, refer });
     }
 
     if (route === 'history') {
