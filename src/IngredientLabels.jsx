@@ -5,6 +5,7 @@ import { useLang } from './i18n.js';
 import Toast from './Toast.jsx';
 import IngredientLabel, { checkLabel } from './IngredientLabel.jsx';
 import { DIL_X, DIL_Y, DPI, THRESHOLDS, labelBitmap, testBitmap } from './rasterize.js';
+import { getPrinter, printImages } from './qz.js';
 import { fetchBom, fetchBomIndex, fetchFormulas, fetchItem, writeBom, writeFormulas, writeItems } from './api.js';
 
 const inputCls =
@@ -230,6 +231,16 @@ export default function IngredientLabels({ onBack }) {
       const images = [];
       for (const { r, b } of jobs) { // de a una: cada bitmap usa un lienzo grande
         images.push(await labelBitmap({ name: test ? 'FORMULA NAME' : title, part: showPart ? r.part : '', seq: r.seq, desc: r.desc, batch: b }, opts));
+      }
+      const printer = getPrinter();
+      if (printer) { // impresión directa con QZ Tray; si falla, se usa el diálogo del navegador
+        try {
+          await printImages(printer, images);
+          flash(t('qz.sent', { n: images.length, p: printer }));
+          return;
+        } catch (e) {
+          setStatus(t('qz.failed', { e: e?.message === 'QZ_TIMEOUT' ? t('qz.notFound') : (e?.message || '') }));
+        }
       }
       setPrintJob({ images });
     } catch (e) {
