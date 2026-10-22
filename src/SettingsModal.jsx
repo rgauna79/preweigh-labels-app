@@ -30,7 +30,7 @@ export default function SettingsModal({ formulasCount, onOpenFormulas, partsCoun
           <h3 className="text-sm font-extrabold">{t('settings.parts')}</h3>
           <p className="mb-3 mt-0.5 text-xs text-slate-500">{t('settings.partsDesc')}</p>
           <button onClick={onOpenParts} className="flex w-full items-center gap-2 rounded-md border border-slate-300 px-3 py-2.5 text-sm font-semibold hover:border-violet-400 hover:bg-violet-50">
-            <Database size={18} /> <span className="flex-1 text-left">{t('manage')}</span>
+            <Database size={18} /> <span className="flex-1 text-left">{t('settings.manageParts')}</span>
             <span className="text-xs text-slate-500">{partsCount ?? '…'}</span>
           </button>
         </section>

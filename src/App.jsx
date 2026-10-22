@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, BookmarkPlus, CheckCircle2, ChevronsRight, Clock, Eraser, Info, Minus, Plus, Printer, Settings as Cog, Tag, X } from 'lucide-react';
-import { useLang } from './i18n.js';
+import { trEn, useLang } from './i18n.js';
 import FormulaManager from './FormulaManager.jsx';
 import ListField from './ListField.jsx';
 import Modal from './Modal.jsx';
@@ -431,11 +431,11 @@ export default function App({ onOpenIngredients }) {
             <button onClick={() => { setShowHistory(true); refresh(); }} className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">
               <Clock size={14} /> {t('hist.btn')}
             </button>
-            <button onClick={onOpenIngredients} title={t('ing.openTitle')} className="ml-auto flex items-center gap-1.5 rounded-md bg-violet-100 px-2.5 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-200">
-              <Tag size={14} /> {t('ing.open')}
+            <button onClick={onOpenIngredients} title={t('ing.openTitle')} className="ml-auto flex min-w-0 items-center gap-1.5 rounded-md bg-violet-100 px-2.5 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-200">
+              <Tag size={14} className="shrink-0" /> <span className="truncate">{t('ing.open')}</span>
             </button>
-            <button onClick={() => setShowSettings(true)} className=" flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">
-              <Cog size={14} /> {t('settings.btn')}
+            <button onClick={() => setShowSettings(true)} title={t('settings.btn')} aria-label={t('settings.btn')} className="shrink-0 rounded-md p-2 text-slate-700 hover:bg-slate-200">
+              <Cog size={16} />
             </button>
           </nav>
 
@@ -702,7 +702,7 @@ export default function App({ onOpenIngredients }) {
                 <Comp data={d} logo={logo} />
                 {stamp && printedAt && (() => {
                   const { d: day, h } = fmtStamp(printedAt);
-                  return <div className="print-stamp">{t('stamp', { d: day, h })}{by ? ` · ${by}` : ''}</div>;
+                  return <div className="print-stamp">{trEn('stamp', { d: day, h })}{by ? ` · ${by}` : ''}</div>;
                 })()}
               </div>
             </div>

@@ -3,13 +3,15 @@ import React, { useEffect, useRef } from 'react';
 /** Ventana modal: se cierra con Esc o al hacer clic fuera, enfoca su contenido y devuelve el foco al cerrar. */
 export default function Modal({ onClose, className = 'max-w-3xl', labelledBy, children }) {
   const card = useRef(null);
+  const closeRef = useRef(onClose); // onClose suele ser una función nueva en cada render; no debe reiniciar el efecto (robaba el foco al escribir)
+  closeRef.current = onClose;
   useEffect(() => {
     const previous = document.activeElement;
     card.current?.focus();
     const onKey = (e) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        onClose();
+        closeRef.current();
       }
     };
     document.addEventListener('keydown', onKey);
@@ -17,7 +19,7 @@ export default function Modal({ onClose, className = 'max-w-3xl', labelledBy, ch
       document.removeEventListener('keydown', onKey);
       if (previous instanceof HTMLElement) previous.focus();
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-6" onClick={onClose}>

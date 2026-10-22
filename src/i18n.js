@@ -22,7 +22,7 @@ const STRINGS = {
     'job.missing': 'Ingredients are missing (1 Missing tag per pallet)',
     'job.refer': 'Has refrigerated items (2 Refer sheets)',
     'list.hint': 'One per line:\n{example}', 'list.count': '{n} items. Only the lines you type are printed.',
-    manage: 'Manage formulas', 'logo.upload': 'Upload logo', 'logo.change': 'Change logo', remove: 'Remove',
+    manage: 'Manage formulas', 'settings.manageParts': 'Manage parts', 'logo.upload': 'Upload logo', 'logo.change': 'Change logo', remove: 'Remove',
     'empty.prefix': 'Empty: {list}', 'empty.missing': 'Missing ingredients', 'empty.refer': 'Refrigerated ingredients',
     'sel.title': 'Sheets to print', 'sel.allLink': 'Choose which sheets to print…', 'sel.partial': 'Printing {a} of {b} sheets · change', 'sel.done': 'Done', 'sel.all': 'Select all', 'sel.pre': 'Preweigh', 'sel.mis': 'Missing', 'sel.ref1': 'Keep in Refer', 'sel.ref2': 'Items in Refer', 'sel.pallets': 'Pallets', 'sel.palletsHint': 'all · or e.g. 2-4, 7', 'sel.none': 'No sheets selected', 'sel.of': '{a} of {b}', 'sel.include': 'Include', 'sel.skipped': 'Not printed', jump: 'Go to…', 'pallets.max': 'max {n}',
     'print.one': 'Print 1 sheet', 'print.many': 'Print {n} sheets',
@@ -109,7 +109,7 @@ const STRINGS = {
     'job.missing': 'Faltan ingredientes (1 tag Missing por pallet)',
     'job.refer': 'Lleva refrigerados (2 hojas Refer)',
     'list.hint': 'Uno por línea:\n{example}', 'list.count': '{n} ingredientes. Solo se imprimen las líneas que escribas.',
-    manage: 'Administrar fórmulas', 'logo.upload': 'Subir logo', 'logo.change': 'Cambiar logo', remove: 'Quitar',
+    manage: 'Administrar fórmulas', 'settings.manageParts': 'Administrar partes', 'logo.upload': 'Subir logo', 'logo.change': 'Cambiar logo', remove: 'Quitar',
     'empty.prefix': 'Vacío: {list}', 'empty.missing': 'Ingredientes faltantes', 'empty.refer': 'Ingredientes refrigerados',
     'sel.title': 'Hojas a imprimir', 'sel.allLink': 'Elegir qué hojas imprimir…', 'sel.partial': 'Imprimiendo {a} de {b} hojas · cambiar', 'sel.done': 'Listo', 'sel.all': 'Seleccionar todo', 'sel.pre': 'Preweigh', 'sel.mis': 'Missing', 'sel.ref1': 'Keep in Refer', 'sel.ref2': 'Items in Refer', 'sel.pallets': 'Pallets', 'sel.palletsHint': 'todos · o ej. 2-4, 7', 'sel.none': 'Ninguna hoja seleccionada', 'sel.of': '{a} de {b}', 'sel.include': 'Incluir', 'sel.skipped': 'No se imprime', jump: 'Ir a…', 'pallets.max': 'máx. {n}',
     'print.one': 'Imprimir 1 hoja', 'print.many': 'Imprimir {n} hojas',
@@ -193,6 +193,9 @@ export function tr(key, vars = {}) {
   const text = STRINGS[current][key] ?? STRINGS.en[key] ?? key;
   return text.replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? `{${k}}`));
 }
+
+/** Siempre en inglés: lo que se imprime en las hojas no se traduce. */
+export const trEn = (key, vars = {}) => (STRINGS.en[key] ?? key).replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? `{${k}}`));
 
 const LangContext = createContext({ lang: 'en', setLang: () => {}, t: tr });
 
