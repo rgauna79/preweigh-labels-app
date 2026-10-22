@@ -6,7 +6,7 @@ import { useLang } from './i18n.js';
 const card = 'rounded-xl border border-slate-200 p-4';
 
 /** Tareas ocasionales (fórmulas, logo, nombre) fuera del flujo diario del panel. */
-export default function SettingsModal({ formulasCount, onOpenFormulas, partsCount, onOpenParts, logo, onLogoFile, onRemoveLogo, by, onBy, stamp, onStamp, onClose }) {
+export default function SettingsModal({ formulasCount, onOpenFormulas, partsCount, onOpenParts, labelsEnabled, onLabelsEnabled, logo, onLogoFile, onRemoveLogo, by, onBy, stamp, onStamp, onClose }) {
   const { t } = useLang();
   const file = useRef(null);
   return (
@@ -33,6 +33,16 @@ export default function SettingsModal({ formulasCount, onOpenFormulas, partsCoun
             <Database size={18} /> <span className="flex-1 text-left">{t('settings.manageParts')}</span>
             <span className="text-xs text-slate-500">{partsCount ?? '…'}</span>
           </button>
+        </section>
+
+        <section className={card}>
+          <label className="flex cursor-pointer items-start gap-3">
+            <input type="checkbox" checked={Boolean(labelsEnabled)} onChange={(e) => onLabelsEnabled?.(e.target.checked)} className="mt-1 h-4 w-4 accent-violet-600" />
+            <span>
+              <span className="block text-sm font-extrabold">{t('settings.labels')}</span>
+              <span className="block text-xs text-slate-500">{t('settings.labelsHint')}</span>
+            </span>
+          </label>
         </section>
 
         <section className={card}>
