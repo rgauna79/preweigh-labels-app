@@ -80,7 +80,7 @@ function Section({ title, action, children }) {
   );
 }
 
-export default function App({ onOpenIngredients, labelsEnabled, onLabelsEnabled }) {
+export default function App({ onOpenIngredients }) {
   const { lang, setLang, t } = useLang();
   const [data, setData] = useState(() => ({ ...EMPTY, ...load('lm.data', {}), date: todayStr() }));
   const [job, setJob] = useState(() => ({ pallets: 1, withMissing: false, withRefer: false, ...load('lm.job', {}) }));
@@ -431,12 +431,10 @@ export default function App({ onOpenIngredients, labelsEnabled, onLabelsEnabled 
             <button onClick={() => { setShowHistory(true); refresh(); }} className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">
               <Clock size={14} /> {t('hist.btn')}
             </button>
-            {onOpenIngredients && (
-              <button onClick={onOpenIngredients} title={t('ing.openTitle')} className="ml-auto flex min-w-0 items-center gap-1.5 rounded-md bg-violet-100 px-2.5 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-200">
-                <Tag size={14} className="shrink-0" /> <span className="truncate">{t('ing.open')}</span>
-              </button>
-            )}
-            <button onClick={() => setShowSettings(true)} title={t('settings.btn')} aria-label={t('settings.btn')} className={`shrink-0 rounded-md p-2 text-slate-700 hover:bg-slate-200 ${onOpenIngredients ? '' : 'ml-auto'}`}>
+            <button onClick={onOpenIngredients} title={t('ing.openTitle')} className="ml-auto flex min-w-0 items-center gap-1.5 rounded-md bg-violet-100 px-2.5 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-200">
+              <Tag size={14} className="shrink-0" /> <span className="truncate">{t('ing.open')}</span>
+            </button>
+            <button onClick={() => setShowSettings(true)} title={t('settings.btn')} aria-label={t('settings.btn')} className="shrink-0 rounded-md p-2 text-slate-700 hover:bg-slate-200">
               <Cog size={16} />
             </button>
           </nav>
@@ -641,7 +639,7 @@ export default function App({ onOpenIngredients, labelsEnabled, onLabelsEnabled 
           formulasCount={formulas.length} onOpenFormulas={() => { setShowSettings(false); setShowFormulas(true); }}
           partsCount={partsCount} onOpenParts={() => { setShowSettings(false); setShowParts(true); }}
           logo={logo} onLogoFile={changeLogo} onRemoveLogo={removeLogo}
-          labelsEnabled={labelsEnabled} onLabelsEnabled={onLabelsEnabled} by={by} onBy={setBy} stamp={stamp} onStamp={setStamp} onClose={() => setShowSettings(false)}
+          by={by} onBy={setBy} stamp={stamp} onStamp={setStamp} onClose={() => setShowSettings(false)}
         />
       )}
       {showFormulas && (
