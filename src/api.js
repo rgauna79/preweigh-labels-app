@@ -1,5 +1,6 @@
 // Cliente de la API compartida (api/[route].js).
 import { tr } from './i18n.js';
+import { askPin } from './dialogs.jsx';
 const PIN_KEY = 'lm.pin';
 
 const getPin = () => {
@@ -11,11 +12,14 @@ const setPin = (v) => {
 
 async function call(path, init = {}) {
   try {
-    return await fetch(`/api/${path}`, {
+    const res = await fetch(`/api/${path}`, {
       ...init,
       headers: { ...(init.headers || {}), 'x-edit-pin': getPin() },
     });
+    window.dispatchEvent(new CustomEvent('lm:net', { detail: true }));
+    return res;
   } catch {
+    window.dispatchEvent(new CustomEvent('lm:net', { detail: false })); // la app muestra el aviso de "sin conexión"
     throw new Error(tr('err.network')); // sin internet o servidor caído
   }
 }
@@ -24,14 +28,15 @@ async function call(path, init = {}) {
 async function withPin(run) {
   let res = await run();
   if (res.status === 401) {
-    const pin = window.prompt(tr('pin.prompt'));
-    if (pin === null) throw new Error(tr('err.cancelled'));
-    setPin(pin.trim());
-    res = await run();
-    if (res.status === 401) {
-      setPin('');
-      throw new Error(tr('err.pin'));
+    let wrong = false;
+    for (let attempt = 0; attempt < 3 && res.status === 401; attempt++) { // hasta 3 intentos en la misma ventana
+      const pin = await askPin({ wrong });
+      if (pin === null) throw new Error(tr('err.cancelled'));
+      setPin(pin.trim());
+      res = await run();
+      if (res.status === 401) { setPin(''); wrong = true; }
     }
+    if (res.status === 401) throw new Error(tr('err.pin'));
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 import IngredientLabels from './IngredientLabels.jsx';
 import { LangProvider } from './i18n.js';
+import { DialogHost } from './dialogs.jsx';
 import './index.css';
 
 const MODE_KEY = 'lm.mode';
@@ -21,5 +22,6 @@ function Shell() {
 createRoot(document.getElementById('root')).render(
   <LangProvider>
     <Shell />
+    <DialogHost />
   </LangProvider>
 );

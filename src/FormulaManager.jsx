@@ -59,7 +59,7 @@ function Row({ entry, isNew, duplicate, onSave, onDelete, onDiscard }) {
       title={state === 'error' ? t('fm.rowError') : undefined}
     >
       <input
-        value={formula} onChange={(e) => setFormula(e.target.value)} onBlur={commit} placeholder="300909" autoFocus={isNew}
+        value={formula} onChange={(e) => setFormula(e.target.value)} onBlur={commit} placeholder={t('ph.eg', { x: '300909' })} autoFocus={isNew}
         disabled={state === 'saving'}
         className={`${cell} ${border} ${duplicate ? '!border-amber-400 bg-amber-50' : ''}`} title={duplicate ? t('fm.dup') : undefined}
       />

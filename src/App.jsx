@@ -5,6 +5,10 @@ import FormulaManager from './FormulaManager.jsx';
 import ListField from './ListField.jsx';
 import Modal from './Modal.jsx';
 import Suggest from './Suggest.jsx';
+import { confirmDialog } from './dialogs.jsx';
+import Hint from './Hint.jsx';
+import OfflineBanner from './OfflineBanner.jsx';
+import WelcomeGuide from './WelcomeGuide.jsx';
 import PartsManager from './PartsManager.jsx';
 import Toast from './Toast.jsx';
 import HistoryModal from './HistoryModal.jsx';
@@ -60,20 +64,21 @@ const inputCls =
   'w-full px-3 py-2 border border-slate-300 rounded-md bg-white text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none';
 
 /** Campo con su título visible encima (el texto de ayuda desaparece al escribir, el título no). */
-function Labeled({ label, children }) {
+function Labeled({ label, hint, error, children }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[11px] font-bold text-slate-500">{label}</span>
+      <span className="mb-1 flex items-center gap-1 text-[11px] font-bold text-slate-500">{label}{hint && <Hint text={hint} />}</span>
       {children}
+      {error && <span role="alert" className="mt-1 block text-[11px] font-bold text-rose-700">{error}</span>}
     </label>
   );
 }
 
-function Section({ title, action, children }) {
+function Section({ title, hint, action, children }) {
   return (
     <section>
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{title}</h2>
+        <h2 className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">{title}{hint && <Hint text={hint} />}</h2>
         {action}
       </div>
       {children}
@@ -92,6 +97,8 @@ export default function App({ onOpenIngredients }) {
   const refreshPartsCount = () => fetchItemCount().then(setPartsCount).catch(() => {});
   const [showSettings, setShowSettings] = useState(false);
   useEffect(() => { if (showSettings) refreshPartsCount(); }, [showSettings]);
+  const [showGuide, setShowGuide] = useState(() => { try { return localStorage.getItem('lm.guideSeen') !== '1'; } catch { return false; } });
+  const closeGuide = () => { setShowGuide(false); try { localStorage.setItem('lm.guideSeen', '1'); } catch { /* sin almacenamiento */ } };
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState([]);
   const [historyError, setHistoryError] = useState('');
@@ -174,11 +181,17 @@ export default function App({ onOpenIngredients }) {
 
   const applyFormula = (value) => {
     const match = formulas.find((f) => f.formula.toLowerCase() === norm(value).toLowerCase());
-    setData((d) => ({
-      ...d,
-      formula: value,
-      ...(match ? { name: match.name || d.name, ile: match.ile || 'ILE' } : {}),
-    }));
+    setData((d) => {
+      // El nombre que se llenó solo pertenece a la fórmula anterior: si la fórmula se borra o cambia a otra, se quita
+      const before = formulas.find((f) => f.formula.toLowerCase() === norm(d.formula).toLowerCase());
+      const staleName = !match && before && norm(d.name) === norm(before.name);
+      return {
+        ...d,
+        formula: value,
+        ...(match ? { name: match.name || d.name, ile: match.ile || 'ILE' } : {}),
+        ...(staleName || !norm(value) ? { name: '' } : {}),
+      };
+    });
     setStatus(
       formulas.length && norm(value) && !match ? t('status.new', { f: norm(value) }) : ''
     );
@@ -277,7 +290,10 @@ export default function App({ onOpenIngredients }) {
   const totalSheets = included.length; // las copias se eligen en el diálogo de impresión
   const partial = included.length < sheets.length;
 
-  const printSet = () => (checks.length ? setConfirmChecks(checks) : doPrint());
+  const printSet = () => {
+    if (emptyKeys.length) setAttempted(true);
+    if (checks.length) setConfirmChecks(checks); else doPrint();
+  };
 
   // Ctrl+P usa el mismo flujo que el botón (revisión previa, historial), no la impresión cruda del navegador
   const printRef = useRef(printSet);
@@ -296,8 +312,9 @@ export default function App({ onOpenIngredients }) {
   // Al imprimir: la fórmula nueva se agrega a la lista, la impresión queda en el historial y se abre el diálogo.
   const doPrint = async () => {
     setConfirmChecks(null);
+    const problems = []; // cosas que no se pudieron guardar (se avisan al terminar; la impresión sigue)
     if (trimmedFormula && norm(data.name) && !saved) {
-      try { setFormulas(await writeFormulas('add', [entryFromForm()])); } catch { /* imprimir igual */ }
+      try { setFormulas(await writeFormulas('add', [entryFromForm()])); } catch { problems.push(t('warn.formula')); } // se imprime igual
     }
     const entry = {
       formula: trimmedFormula, name: norm(data.name), batch: norm(data.batch), batchTotal: norm(data.batchTotal),
@@ -306,21 +323,26 @@ export default function App({ onOpenIngredients }) {
       missing: job.withMissing ? data.missing : '', refer: job.withRefer ? data.refer : '', by: norm(by),
       printed: included.length < sheets.length ? included.map((x) => x.key).join(', ') : '', // solo si no se imprimió todo
     };
+    let referOk = true;
     if (job.withRefer && trimmedFormula && norm(data.refer) && tidy(data.refer) !== savedRefer) { // la lista de refrigerados queda guardada para esta fórmula
-      saveRefer(trimmedFormula, data.refer).then(() => setSavedRefer(tidy(data.refer))).catch(() => {});
+      referOk = saveRefer(trimmedFormula, data.refer).then(() => { setSavedRefer(tidy(data.refer)); return true; }).catch(() => false);
     }
     setHistory((h) => [{ ...entry, ts: Date.now() }, ...h]);
-    addHistory(entry).catch(() => {}); // si falla, no impide imprimir
+    const historyOk = addHistory(entry).then(() => true).catch(() => false); // si falla, no impide imprimir
     setPrintedAt(Date.now());
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); // deja pintar la hora antes de abrir el diálogo
     window.print();
+    if (!(await historyOk)) problems.push(t('warn.history'));
+    if (!(await referOk)) problems.push(t('warn.refer'));
+    if (problems.length) showToast(t('print.doneWarn', { list: problems.join(' ') }), null, null, 14000);
+    else showToast(t('print.done'), null, atLastBatch ? null : { label: t('nextBatch'), onClick: nextBatch }, 10000);
   };
 
   // --- Deshacer: "Nuevo", "Siguiente batch" y "Cargar" guardan una copia para poder volver
-  const showToast = (text, snapshot) => {
+  const showToast = (text, snapshot, action = null, ms = 7000) => {
     clearTimeout(toastTimer.current);
-    setToast({ text, undo: snapshot });
-    toastTimer.current = setTimeout(() => setToast(null), 7000);
+    setToast({ text, undo: snapshot, action });
+    toastTimer.current = setTimeout(() => setToast(null), ms);
   };
   const snapshot = () => ({ data, job, edited: dateEdited.current });
   const restore = (snap) => {
@@ -373,7 +395,7 @@ export default function App({ onOpenIngredients }) {
   };
 
   const forgetRefer = async () => {
-    if (!window.confirm(t('refer.forgetConfirm', { f: trimmedFormula }))) return;
+    if (!(await confirmDialog({ title: t('refer.forgetTitle'), message: t('refer.forgetConfirm', { f: trimmedFormula }), confirmLabel: t('refer.forgetBtn'), tone: 'danger' }))) return;
     try { await deleteRefer(trimmedFormula); setSavedRefer(null); setStatus(t('refer.forgotten', { f: trimmedFormula }), 'success'); } catch (err) { setStatus(err.message, 'error'); }
   };
   const clearList = (field) => {
@@ -403,13 +425,23 @@ export default function App({ onOpenIngredients }) {
     formula: 'Formula', name: 'Name', batch: 'Batch#', po: 'P.O.#', batches: 'Batches', identifier: 'ID',
   };
   const effective = { ...data, batches: batchesText(data) };
+  const emptyKeys = Object.keys(required).filter((k) => !norm(effective[k]));
+  const [attempted, setAttempted] = useState(false); // ya intentó imprimir: los campos obligatorios vacíos se marcan en rojo
+  const invalid = (k) => attempted && emptyKeys.includes(k);
+  const BAD = '!border-rose-500 !bg-rose-50';
+  const fieldOf = { formula: 'formula', name: 'name', batch: 'batch', po: 'po', batches: data.batchesCustom ? 'batches' : 'batchTotal', identifier: 'identifier' };
+  const focusFirstEmpty = () => {
+    const k = emptyKeys[0];
+    const el = k && document.querySelector(`.app-root [name="${fieldOf[k]}"]`);
+    if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.focus({ preventScroll: true }); }
+  };
   const emptyFields = Object.entries(required).filter(([k]) => !norm(effective[k])).map(([, l]) => l);
   if (job.withMissing && !toItems(data.missing, LIMITS.missing).length) emptyFields.push(t('empty.missing'));
   if (job.withRefer && !toItems(data.refer, LIMITS.refer).length) emptyFields.push(t('empty.refer'));
 
   const text = (name, placeholder, extra = '', attrs = {}) => (
     <input key={name} name={name} value={data[name]} onChange={onChange} placeholder={placeholder}
-      maxLength={typeof LIMITS[name] === 'number' ? LIMITS[name] : undefined} className={`${inputCls} ${extra}`} {...attrs} />
+      maxLength={typeof LIMITS[name] === 'number' ? LIMITS[name] : undefined} className={`${inputCls} ${extra} ${invalid(name === 'batchTotal' ? 'batches' : name) ? BAD : ''}`} {...attrs} />
   );
 
   // Campo con título y límite de caracteres: avisa al acercarse y al llegar al tope
@@ -420,7 +452,8 @@ export default function App({ onOpenIngredients }) {
     return (
       <Labeled label={label}>
         <input key={name} name={name} value={data[name]} onChange={onChange} maxLength={max} placeholder={placeholder}
-          className={`${inputCls} ${atLimit ? '!border-rose-500 !bg-rose-50' : ''}`} />
+          className={`${inputCls} ${atLimit || invalid(name) ? BAD : ''}`} />
+        {invalid(name) && <span role="alert" className="mt-1 block text-[11px] font-bold text-rose-700">{t('req.field', { f: label })}</span>}
         {n >= max * 0.8 && (
           <span className={`mt-1 block text-right text-[11px] font-bold ${atLimit ? 'text-rose-700' : 'text-amber-700'}`}>
             {atLimit ? t('limit.reached', { n, max }) : t('limit.count', { n, max })}
@@ -462,6 +495,7 @@ export default function App({ onOpenIngredients }) {
             </div>
           </header>
 
+          <OfflineBanner onRetry={refresh} />
           <nav className="flex items-center gap-1.5 border-b border-slate-200 bg-slate-50 px-4 py-2" aria-label="Acciones">
             <button onClick={newBatch} title={t('newTitle')} className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">
               <Eraser size={14} /> {t('new')}
@@ -487,14 +521,14 @@ export default function App({ onOpenIngredients }) {
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 flex flex-col gap-5" onKeyDown={onEnterNext}>
             <Section title={t('sec.batch')}>
               <div className="grid gap-3">
-                <Labeled label={t('lbl.formula')}>
+                <Labeled label={t('lbl.formula')} hint={t('hint.formula')} error={invalid('formula') ? t('req.field', { f: t('lbl.formula') }) : ''}>
                   <Suggest
                     name="formula" value={data.formula} maxLength={LIMITS.formula} autoFocus inputRef={formulaInput}
                     onChange={(v) => applyFormula(v.slice(0, LIMITS.formula))} onPick={(o) => applyFormula(o.key)}
-                    options={formulaOptions} placeholder="300909" className={inputCls} emptyText={t('formula.none')}
+                    options={formulaOptions} placeholder={t('ph.eg', { x: '300909' })} className={`${inputCls} ${invalid('formula') ? BAD : ''}`} emptyText={t('formula.none')}
                   />
                 </Labeled>
-                {limited('name', t('lbl.name'))}
+                {limited('name', t('lbl.name'), t('ph.eg', { x: 'Mango Juice Blend' }))}
                 {serverError && (
                   <div role="alert" className="lm-slide flex items-start gap-2 rounded-md border-l-4 border-rose-600 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-900">
                     <AlertTriangle size={16} className="shrink-0 text-rose-600" /> <span className="break-words">{serverError}</span>
@@ -519,10 +553,10 @@ export default function App({ onOpenIngredients }) {
                   </div>
                 )}
                 <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
-                  <Labeled label={t('lbl.batch')}>{text('batch', '3', batchOverTotal ? '!border-rose-500 !bg-rose-50' : '')}</Labeled>
+                  <Labeled label={t('lbl.batch')} error={invalid('batch') ? t('req.field', { f: t('lbl.batch') }) : ''}>{text('batch', t('ph.eg', { x: '3' }), batchOverTotal ? '!border-rose-500 !bg-rose-50' : '')}</Labeled>
                   <span className="pb-2 text-sm font-extrabold text-slate-400">/</span>
-                  <Labeled label={t('lbl.total')}>
-                    {text('batchTotal', '12', `${data.batchesCustom ? 'opacity-50' : ''} ${batchOverTotal ? '!border-rose-500 !bg-rose-50' : ''}`, { inputMode: 'numeric' })}
+                  <Labeled label={t('lbl.total')} hint={t('hint.batches')} error={invalid('batches') ? t('req.field', { f: t('lbl.total') }) : ''}>
+                    {text('batchTotal', t('ph.eg', { x: '12' }), `${data.batchesCustom ? 'opacity-50' : ''} ${batchOverTotal ? '!border-rose-500 !bg-rose-50' : ''}`, { inputMode: 'numeric' })}
                   </Labeled>
                 </div>
                 <div className="-mt-1.5 flex items-center gap-2 text-xs">
@@ -537,21 +571,21 @@ export default function App({ onOpenIngredients }) {
                     {data.batchesCustom ? t('batches.auto') : t('batches.custom')}
                   </button>
                 </div>
-                {limited('po', t('lbl.po'), '26101885-1')}
+                {limited('po', t('lbl.po'), t('ph.eg', { x: '26101885-1' }))}
                 <div className="grid grid-cols-2 gap-2">
                   <Labeled label={t('lbl.date')}>
                     <div className="relative">
-                      {text('date', 'MM/DD/YY', 'pr-14')}
+                      {text('date', t('ph.eg', { x: 'MM/DD/YY' }), 'pr-14')}
                       {data.date !== todayStr() && (
                         <button onClick={setToday} title={t('todayTitle')} className="absolute right-1.5 top-1.5 px-2 py-1 rounded bg-violet-100 text-violet-700 text-xs font-bold hover:bg-violet-200">{t('today')}</button>
                       )}
                     </div>
                   </Labeled>
-                  <Labeled label={t('lbl.id')}>
-                    <div className="flex items-center border border-slate-300 rounded-md bg-white focus-within:ring-2 focus-within:ring-violet-500 focus-within:border-violet-500">
+                  <Labeled label={t('lbl.id')} hint={t('hint.id')} error={invalid('identifier') ? t('req.field', { f: t('lbl.id') }) : ''}>
+                    <div className={`flex items-center border rounded-md bg-white ${invalid('identifier') ? 'border-rose-500 bg-rose-50' : 'border-slate-300'} focus-within:ring-2 focus-within:ring-violet-500 focus-within:border-violet-500`}>
                       <span className="pl-3 text-sm font-extrabold text-slate-400 select-none">ID-</span>
                       <input ref={idInput} name="identifier" value={stripId(data.identifier)} maxLength={LIMITS.identifier + 3}
-                        onChange={(e) => set('identifier', stripId(e.target.value).slice(0, LIMITS.identifier))} placeholder="G9FB71"
+                        onChange={(e) => set('identifier', stripId(e.target.value).slice(0, LIMITS.identifier))} placeholder={t('ph.eg', { x: 'G9FB71' })}
                         className="w-full px-1.5 py-2 text-sm font-semibold text-slate-900 bg-transparent outline-none" />
                     </div>
                   </Labeled>
@@ -570,7 +604,7 @@ export default function App({ onOpenIngredients }) {
             </Section>
 
             <div className="flex items-center justify-between">
-              <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{t('sec.pallets')} <span className="font-semibold normal-case tracking-normal text-slate-400">· {t('pallets.max', { n: MAX_PALLETS })}</span></h2>
+              <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{t('sec.pallets')} <Hint text={t('hint.pallets')} /> <span className="font-semibold normal-case tracking-normal text-slate-400">· {t('pallets.max', { n: MAX_PALLETS })}</span></h2>
               <div className="flex items-center gap-1" role="group" aria-label={t('sec.pallets')}>
                 <button onClick={() => setJob((j) => ({ ...j, pallets: Math.max(1, j.pallets - 1) }))} disabled={job.pallets <= 1} aria-label="−"
                   className="rounded border border-slate-300 bg-white p-1 hover:bg-slate-100 disabled:opacity-40"><Minus size={12} /></button>
@@ -582,7 +616,7 @@ export default function App({ onOpenIngredients }) {
               </div>
             </div>
 
-            <Section title={t('sec.missing')} action={clearBtn('missing')}>
+            <Section title={t('sec.missing')} hint={t('hint.missing')} action={clearBtn('missing')}>
               <label className="flex items-center gap-2 text-sm font-semibold mb-2 cursor-pointer">
                 <input type="checkbox" checked={job.withMissing} onChange={(e) => setJob((j) => ({ ...j, withMissing: e.target.checked }))} className="w-4 h-4 accent-rose-600" />
                 {t('job.missing')}
@@ -595,7 +629,7 @@ export default function App({ onOpenIngredients }) {
               )}
             </Section>
 
-            <Section title={t('sec.refer')} action={(
+            <Section title={t('sec.refer')} hint={t('hint.refer')} action={(
               <span className="flex items-center gap-1.5">
                 {savedRefer != null && (
                   <span className="flex items-center gap-1 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700" title={t('refer.savedHint')}>
@@ -681,6 +715,7 @@ export default function App({ onOpenIngredients }) {
         <SettingsModal
           formulasCount={formulas.length} onOpenFormulas={() => { setShowSettings(false); setShowFormulas(true); }}
           partsCount={partsCount} onOpenParts={() => { setShowSettings(false); setShowParts(true); }}
+          onOpenGuide={() => { setShowSettings(false); setShowGuide(true); }}
           logo={logo} onLogoFile={changeLogo} onRemoveLogo={removeLogo}
           by={by} onBy={setBy} stamp={stamp} onStamp={setStamp} onClose={() => setShowSettings(false)}
         />
@@ -688,6 +723,7 @@ export default function App({ onOpenIngredients }) {
       {showFormulas && (
         <FormulaManager formulas={formulas} onSave={saveEntry} onDelete={deleteEntry} onImport={importEntries} onClose={() => setShowFormulas(false)} />
       )}
+      {showGuide && <WelcomeGuide onClose={closeGuide} />}
       {showParts && <PartsManager onClose={() => setShowParts(false)} />}
       {showHistory && <HistoryModal history={history} error={historyError} onLoad={loadFromHistory} onClose={() => setShowHistory(false)} />}
       {showPick && (
@@ -734,7 +770,7 @@ export default function App({ onOpenIngredients }) {
           </footer>
         </Modal>
       )}
-      {confirmChecks && <PrintConfirm checks={confirmChecks} total={totalSheets} breakdown={breakdown} onFix={() => setConfirmChecks(null)} onPrint={doPrint} />}
+      {confirmChecks && <PrintConfirm checks={confirmChecks} total={totalSheets} breakdown={breakdown} onFix={() => { setConfirmChecks(null); setTimeout(focusFirstEmpty, 50); }} onPrint={doPrint} />}
       <div className="app-root"><Toast toast={toast} onUndo={() => toast?.undo && restore(toast.undo)} /></div>
 
       {/* SALIDA DE IMPRESIÓN: una hoja Letter horizontal por etiqueta */}

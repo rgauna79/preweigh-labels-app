@@ -3,6 +3,8 @@ import { AlertTriangle, ArrowLeft, Check, ClipboardPaste, Plus, Printer, Save, T
 import { useLang } from './i18n.js';
 import Toast from './Toast.jsx';
 import Suggest from './Suggest.jsx';
+import { confirmDialog } from './dialogs.jsx';
+import OfflineBanner from './OfflineBanner.jsx';
 import { searchParts, useCatalog } from './catalog.js';
 import IngredientLabel, { checkLabel } from './IngredientLabel.jsx';
 import { DIL_X, DIL_Y, DPI, THRESHOLDS, labelBitmap, testBitmap } from './rasterize.js';
@@ -95,11 +97,11 @@ export default function IngredientLabels({ onBack }) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cambiar de fórmula: solo recarga si es otra, y avisa antes de descartar cambios sin guardar
-  const switchFormula = (value) => {
+  const switchFormula = async (value) => {
     const f = norm(value);
     setFormula(value);
     if (f === loadedFor.current) return;
-    if (dirty && !window.confirm(t('ing.discard'))) { setFormula(loadedFor.current ?? ''); return; }
+    if (dirty && !(await confirmDialog({ title: t('ing.discardTitle'), message: t('ing.discard'), confirmLabel: t('ing.discardBtn'), cancelLabel: t('ing.keepEditing'), tone: 'danger' }))) { setFormula(loadedFor.current ?? ''); return; }
     loadFormula(f);
   };
   const formulaOptions = (() => {
@@ -221,8 +223,8 @@ export default function IngredientLabels({ onBack }) {
 
   const doPrint = async (list, test = false) => {
     setStatus('');
-    if (!test && cuts.length && !window.confirm(t('ing.vConfirm', { list: cuts.slice(0, 5).map((i) => `• ${i.text}`).join('\n') }))) return;
-    if (!test && total > 60 && !window.confirm(t('ing.confirmMany', { n: total }))) return;
+    if (!test && cuts.length && !(await confirmDialog({ title: t('ing.vTitle'), message: t('ing.vConfirm', { list: cuts.slice(0, 5).map((i) => `• ${i.text}`).join('\n') }), confirmLabel: t('ing.printAnyway'), cancelLabel: t('ing.goFix') }))) return;
+    if (!test && total > 60 && !(await confirmDialog({ title: t('ing.manyTitle'), message: t('ing.confirmMany', { n: total }), confirmLabel: t('ing.printN', { n: total }) }))) return;
     setPreparing(true);
     try {
       const mmToDots = (v) => (mm(v) * DPI) / 25.4;
@@ -301,6 +303,7 @@ export default function IngredientLabels({ onBack }) {
   return (
     <>
       <div className="ing-ui flex h-screen flex-col bg-slate-100 font-sans text-slate-900">
+        <OfflineBanner />
         <header className="flex items-center gap-3 bg-violet-600 px-4 py-3 text-white">
           <button onClick={onBack} className="flex items-center gap-1.5 rounded-md bg-white/15 px-2.5 py-1.5 text-xs font-bold hover:bg-white/25">
             <ArrowLeft size={14} /> {t('ing.back')}
@@ -448,7 +451,7 @@ export default function IngredientLabels({ onBack }) {
               </label>
               <div className="flex flex-wrap items-center gap-2">
                 <label className="text-xs font-bold text-slate-600">{t('ing.batchFrom')}</label>
-                <input value={batchFrom} inputMode="numeric" maxLength={3} placeholder="1" className={`${inputCls} !w-16`}
+                <input value={batchFrom} inputMode="numeric" maxLength={3} placeholder={t('ph.eg', { x: '1' })} className={`${inputCls} !w-16`}
                   onChange={(e) => { const v = e.target.value.replace(/\D/g, ''); setBatchFrom(v); if (!batchTo || batchTo === batchFrom) setBatchTo(v); }} />
                 <label className="text-xs font-bold text-slate-600">{t('ing.batchTo')}</label>
                 <input value={batchTo} inputMode="numeric" maxLength={3} placeholder={batchFrom || '1'} className={`${inputCls} !w-16`}

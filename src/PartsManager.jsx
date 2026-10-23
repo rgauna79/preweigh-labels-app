@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, ClipboardPaste, Download, FileUp, Loader2, Plus, Search, Trash2, X } from 'lucide-react';
 import Modal from './Modal.jsx';
+import { confirmDialog } from './dialogs.jsx';
 import { useLang } from './i18n.js';
 import { fetchAllItems, writeItems } from './api.js';
 import { resetCatalog } from './catalog.js';
@@ -44,8 +45,8 @@ export default function PartsManager({ onClose, onChanged }) {
     setItems((l) => l.map((i) => (i.part === item.part ? { ...i, description } : i)));
     run(() => writeItems('upsert', [{ part: item.part, description }]));
   };
-  const remove = (item) => {
-    if (!window.confirm(t('parts.confirmDel', { p: item.part }))) return;
+  const remove = async (item) => {
+    if (!(await confirmDialog({ title: t('parts.delTitle'), message: t('parts.confirmDel', { p: item.part }), confirmLabel: t('parts.delBtn'), tone: 'danger' }))) return;
     setItems((l) => l.filter((i) => i.part !== item.part));
     run(() => writeItems('delete', [item]));
   };
@@ -160,7 +161,7 @@ export default function PartsManager({ onClose, onChanged }) {
             </thead>
             <tbody>
               <tr className="border-b border-slate-100 bg-violet-50/50">
-                <td className="px-2 py-1"><input value={add.part} maxLength={PART_MAX} placeholder="700000" onChange={(e) => setAdd((a) => ({ ...a, part: e.target.value }))} onKeyDown={(e) => e.key === 'Enter' && addOne()} className={cell} /></td>
+                <td className="px-2 py-1"><input value={add.part} maxLength={PART_MAX} placeholder={t('ph.eg', { x: '700000' })} onChange={(e) => setAdd((a) => ({ ...a, part: e.target.value }))} onKeyDown={(e) => e.key === 'Enter' && addOne()} className={cell} /></td>
                 <td className="px-1 py-1"><input value={add.description} maxLength={DESC_MAX} placeholder={t('ing.desc')} onChange={(e) => setAdd((a) => ({ ...a, description: e.target.value }))} onKeyDown={(e) => e.key === 'Enter' && addOne()} className={cell} /></td>
                 <td className="pr-2"><button onClick={addOne} disabled={!add.part.trim()} aria-label={t('fm.add')} className="rounded p-1 text-violet-700 hover:bg-violet-100 disabled:opacity-30"><Plus size={16} /></button></td>
               </tr>
