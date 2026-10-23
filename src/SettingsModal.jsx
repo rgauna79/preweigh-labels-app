@@ -6,7 +6,7 @@ import { useLang } from './i18n.js';
 const card = 'rounded-xl border border-slate-200 p-4';
 
 /** Tareas ocasionales (fórmulas, logo, nombre) fuera del flujo diario del panel. */
-export default function SettingsModal({ formulasCount, onOpenFormulas, partsCount, onOpenParts, onOpenGuide, logo, onLogoFile, onRemoveLogo, by, onBy, stamp, onStamp, onClose }) {
+export default function SettingsModal({ formulasCount, onOpenFormulas, partsCount, onOpenParts, logo, onLogoFile, onRemoveLogo, by, onBy, stamp, onStamp, onClose }) {
   const { t } = useLang();
   const file = useRef(null);
   return (
@@ -32,14 +32,6 @@ export default function SettingsModal({ formulasCount, onOpenFormulas, partsCoun
           <button onClick={onOpenParts} className="flex w-full items-center gap-2 rounded-md border border-slate-300 px-3 py-2.5 text-sm font-semibold hover:border-violet-400 hover:bg-violet-50">
             <Database size={18} /> <span className="flex-1 text-left">{t('settings.manageParts')}</span>
             <span className="text-xs text-slate-500">{partsCount ?? '…'}</span>
-          </button>
-        </section>
-
-        <section className={card}>
-          <h3 className="text-sm font-extrabold">{t('guide.title')}</h3>
-          <p className="mb-3 mt-0.5 text-xs text-slate-500">{t('guide.settingsDesc')}</p>
-          <button onClick={onOpenGuide} className="flex w-full items-center gap-2 rounded-md border border-slate-300 px-3 py-2.5 text-sm font-semibold hover:border-violet-400 hover:bg-violet-50">
-            <span className="flex-1 text-left">{t('guide.show')}</span>
           </button>
         </section>
 

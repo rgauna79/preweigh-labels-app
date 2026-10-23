@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Check, ClipboardPaste, Plus, Printer, Save, Trash2, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, ClipboardPaste, HelpCircle, Plus, Printer, Save, Trash2, X } from 'lucide-react';
 import { useLang } from './i18n.js';
 import Toast from './Toast.jsx';
 import Suggest from './Suggest.jsx';
 import { confirmDialog } from './dialogs.jsx';
 import OfflineBanner from './OfflineBanner.jsx';
+import WelcomeGuide from './WelcomeGuide.jsx';
 import { searchParts, useCatalog } from './catalog.js';
 import IngredientLabel, { checkLabel } from './IngredientLabel.jsx';
 import { DIL_X, DIL_Y, DPI, THRESHOLDS, labelBitmap, testBitmap } from './rasterize.js';
@@ -56,6 +57,8 @@ export default function IngredientLabels({ onBack }) {
   const [batchTo, setBatchTo] = useState(() => (isNum(linked.batch) ? norm(linked.batch) : ''));
   const [showPart, setShowPart] = useState(() => load('lm.ing.showPart', true)); // imprimir el número de parte en Item Code
   const [preparing, setPreparing] = useState(false);
+  const [showGuide, setShowGuide] = useState(() => { try { return localStorage.getItem('lm.guideSeen.labels') !== '1'; } catch { return false; } });
+  const closeGuide = () => { setShowGuide(false); try { localStorage.setItem('lm.guideSeen.labels', '1'); } catch { /* sin almacenamiento */ } };
   const [seqDraft, setSeqDraft] = useState(null); // texto mientras se escribe; null = se muestra lo marcado
   // "30" o "20, 40-60": marca solo esas secuencias
   const applySeqs = (txt) => {
@@ -312,6 +315,9 @@ export default function IngredientLabels({ onBack }) {
             <h1 className="text-[17px] font-extrabold leading-tight">{t('ing.title')}</h1>
             <p className="text-xs text-violet-200">{t('ing.subtitle')}</p>
           </div>
+          <button onClick={() => setShowGuide(true)} className="flex items-center gap-1.5 rounded-md bg-white/15 px-2.5 py-1.5 text-xs font-bold hover:bg-white/25">
+            <HelpCircle size={14} /> {t('help.btn')}
+          </button>
           <div className="flex items-center rounded-md bg-white/15 p-0.5 text-[11px] font-extrabold" role="group" aria-label={t('lang')}>
             {['en', 'es'].map((l) => (
               <button key={l} onClick={() => setLang(l)} aria-pressed={lang === l}
@@ -506,6 +512,7 @@ export default function IngredientLabels({ onBack }) {
         </div>
       </div>
 
+      {showGuide && <WelcomeGuide kind="labels" onClose={closeGuide} />}
       <div className="ing-ui"><Toast toast={toast} onUndo={() => {}} /></div>
 
       {/* SALIDA DE IMPRESIÓN: una página de 4 x 2 in por etiqueta */}
