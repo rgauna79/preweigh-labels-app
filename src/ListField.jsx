@@ -8,7 +8,7 @@ const base =
   'w-full resize-y rounded-md border bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-violet-500';
 
 /** Lista de ingredientes (uno por línea) con límite de renglones y de largo por renglón. */
-export default function ListField({ name, value, onChange, limits, placeholder, tone = 'rose' }) {
+export default function ListField({ name, value, onChange, limits, placeholder, tone = 'rose', invalid = false, emptyNote = '' }) {
   const { t } = useLang();
   const catalog = useCatalog();
   const [q, setQ] = useState('');
@@ -46,8 +46,11 @@ export default function ListField({ name, value, onChange, limits, placeholder, 
         placeholder={placeholder}
         onChange={(e) => onChange(clampList(e.target.value, limits))}
         onBlur={(e) => onChange(clampList(complete(e.target.value), limits))}
-        className={`${base} ${full ? 'border-rose-500' : 'border-slate-300'}`}
+        className={`${base} ${full || invalid ? 'border-rose-500 bg-rose-50' : 'border-slate-300'}`}
       />
+      {n === 0 && emptyNote && (
+        <p role={invalid ? 'alert' : 'status'} className={`text-[11px] font-bold ${invalid ? 'text-rose-700' : 'text-amber-700'}`}>{emptyNote}</p>
+      )}
       <p className={`flex justify-between text-[11px] font-bold ${color}`}>
         <span>{full ? t('list.full', { max: limits.lines }) : t('list.lines', { n, max: limits.lines })}</span>
         <span>{t('list.chars', { max: limits.chars })}{longest >= limits.chars ? ' ·' : ''}</span>

@@ -426,10 +426,12 @@ export default function App({ onOpenIngredients }) {
   };
   const effective = { ...data, batches: batchesText(data) };
   const emptyKeys = Object.keys(required).filter((k) => !norm(effective[k]));
+  if (job.withMissing && !toItems(data.missing, LIMITS.missing).length) emptyKeys.push('missing');
+  if (job.withRefer && !toItems(data.refer, LIMITS.refer).length) emptyKeys.push('refer');
   const [attempted, setAttempted] = useState(false); // ya intentó imprimir: los campos obligatorios vacíos se marcan en rojo
   const invalid = (k) => attempted && emptyKeys.includes(k);
   const BAD = '!border-rose-500 !bg-rose-50';
-  const fieldOf = { formula: 'formula', name: 'name', batch: 'batch', po: 'po', batches: data.batchesCustom ? 'batches' : 'batchTotal', identifier: 'identifier' };
+  const fieldOf = { formula: 'formula', name: 'name', batch: 'batch', po: 'po', batches: data.batchesCustom ? 'batches' : 'batchTotal', identifier: 'identifier', missing: 'missing', refer: 'refer' };
   const focusFirstEmpty = () => {
     const k = emptyKeys[0];
     const el = k && document.querySelector(`.app-root [name="${fieldOf[k]}"]`);
@@ -623,7 +625,7 @@ export default function App({ onOpenIngredients }) {
               </label>
               {job.withMissing && (
                 <div className="p-3 rounded-lg bg-rose-50 border border-rose-200">
-                  <ListField name="missing" value={data.missing} onChange={(v) => set('missing', v)} limits={LIMITS.missing} tone="rose"
+                  <ListField name="missing" invalid={invalid('missing')} emptyNote={t('req.list', { what: t('sec.missing') })} value={data.missing} onChange={(v) => set('missing', v)} limits={LIMITS.missing} tone="rose"
                     placeholder={t('list.hint', { example: '701360 Pure Vanilla Ext 2' })} />
                 </div>
               )}
@@ -646,7 +648,7 @@ export default function App({ onOpenIngredients }) {
               </label>
               {job.withRefer && (
                 <div className="p-3 rounded-lg bg-sky-50 border border-sky-200">
-                  <ListField name="refer" value={data.refer} onChange={(v) => set('refer', v)} limits={LIMITS.refer} tone="sky"
+                  <ListField name="refer" invalid={invalid('refer')} emptyNote={t('req.list', { what: t('sec.refer') })} value={data.refer} onChange={(v) => set('refer', v)} limits={LIMITS.refer} tone="sky"
                     placeholder={t('list.hint', { example: '702757 Chiber Mushroom' })} />
                 </div>
               )}
