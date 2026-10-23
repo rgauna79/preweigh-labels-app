@@ -315,9 +315,6 @@ export default function IngredientLabels({ onBack }) {
             <h1 className="text-[17px] font-extrabold leading-tight">{t('ing.title')}</h1>
             <p className="text-xs text-violet-200">{t('ing.subtitle')}</p>
           </div>
-          <button onClick={() => setShowGuide(true)} className="flex items-center gap-1.5 rounded-md bg-white/15 px-2.5 py-1.5 text-xs font-bold hover:bg-white/25">
-            <HelpCircle size={14} /> {t('help.btn')}
-          </button>
           <div className="flex items-center rounded-md bg-white/15 p-0.5 text-[11px] font-extrabold" role="group" aria-label={t('lang')}>
             {['en', 'es'].map((l) => (
               <button key={l} onClick={() => setLang(l)} aria-pressed={lang === l}
@@ -390,7 +387,12 @@ export default function IngredientLabels({ onBack }) {
                 </table>
               )}
               {norm(formula) && !rows.length && !busy && <p className="p-6 text-center text-sm text-slate-500">{t('ing.empty')}</p>}
-              {!norm(formula) && <p className="p-6 text-center text-sm text-slate-500">{t('ing.start')}</p>}
+              {!norm(formula) && (
+                <div className="p-6 text-center">
+                  <p className="text-sm text-slate-500">{t('ing.start')}</p>
+                  <button onClick={() => setShowGuide(true)} className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-violet-100 px-3 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-200"><HelpCircle size={14} /> {t('help.btn')}</button>
+                </div>
+              )}
             </div>
 
             {norm(formula) && issues.length > 0 && (
@@ -418,6 +420,7 @@ export default function IngredientLabels({ onBack }) {
                 <div className="flex flex-wrap items-center gap-1.5">
                   <button onClick={addRow} className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200"><Plus size={14} /> {t('ing.add')}</button>
                   <button onClick={() => setShowPaste((v) => !v)} className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200"><ClipboardPaste size={14} /> {t('ing.paste')}</button>
+                  <button onClick={() => setShowGuide(true)} className="flex items-center gap-1.5 rounded-md bg-violet-100 px-2.5 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-200"><HelpCircle size={14} /> {t('help.btn')}</button>
                   <div className="flex-1" />
                   {!dirty && saved !== null ? (
                     <span className="flex items-center gap-1 text-xs font-bold text-emerald-700"><Check size={14} /> {t('ing.upToDate')}</span>
