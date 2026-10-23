@@ -310,13 +310,10 @@ export default function App({ onOpenIngredients }) {
     return () => document.removeEventListener('keydown', onKey);
   }, [included.length]);
 
-  // Al imprimir: la fórmula nueva se agrega a la lista, la impresión queda en el historial y se abre el diálogo.
+  // Al imprimir se abre el diálogo del navegador. El navegador no avisa si se canceló, así que se pregunta;
+  // solo si se imprimió se guarda en el historial, la lista de refrigerados y la fórmula nueva.
   const doPrint = async () => {
     setConfirmChecks(null);
-    const problems = []; // cosas que no se pudieron guardar (se avisan al terminar; la impresión sigue)
-    if (trimmedFormula && norm(data.name) && !saved) {
-      try { setFormulas(await writeFormulas('add', [entryFromForm()])); } catch { problems.push(t('warn.formula')); } // se imprime igual
-    }
     const entry = {
       formula: trimmedFormula, name: norm(data.name), batch: norm(data.batch), batchTotal: norm(data.batchTotal),
       batches: batchesText(data), po: norm(data.po), date: norm(data.date), ile: norm(data.ile), identifier: stripId(data.identifier),
@@ -324,17 +321,24 @@ export default function App({ onOpenIngredients }) {
       missing: job.withMissing ? data.missing : '', refer: job.withRefer ? data.refer : '', by: norm(by),
       printed: included.length < sheets.length ? included.map((x) => x.key).join(', ') : '', // solo si no se imprimió todo
     };
-    let referOk = true;
-    if (job.withRefer && trimmedFormula && norm(data.refer) && tidy(data.refer) !== savedRefer) { // la lista de refrigerados queda guardada para esta fórmula
-      referOk = saveRefer(trimmedFormula, data.refer).then(() => { setSavedRefer(tidy(data.refer)); return true; }).catch(() => false);
-    }
-    setHistory((h) => [{ ...entry, ts: Date.now() }, ...h]);
-    const historyOk = addHistory(entry).then(() => true).catch(() => false); // si falla, no impide imprimir
     setPrintedAt(Date.now());
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); // deja pintar la hora antes de abrir el diálogo
     window.print();
-    if (!(await historyOk)) problems.push(t('warn.history'));
-    if (!(await referOk)) problems.push(t('warn.refer'));
+
+    const printedOk = await confirmDialog({
+      title: t('printed.title'), message: t('printed.msg'), confirmLabel: t('printed.yes'), cancelLabel: t('printed.no'), focusConfirm: true,
+    });
+    if (!printedOk) { showToast(t('printed.notSaved'), null, null, 9000); return; }
+
+    const problems = []; // cosas que no se pudieron guardar
+    if (trimmedFormula && norm(data.name) && !saved) {
+      try { setFormulas(await writeFormulas('add', [entryFromForm()])); } catch { problems.push(t('warn.formula')); }
+    }
+    if (job.withRefer && trimmedFormula && norm(data.refer) && tidy(data.refer) !== savedRefer) { // la lista de refrigerados queda guardada para esta fórmula
+      try { await saveRefer(trimmedFormula, data.refer); setSavedRefer(tidy(data.refer)); } catch { problems.push(t('warn.refer')); }
+    }
+    setHistory((h) => [{ ...entry, ts: Date.now() }, ...h]);
+    try { await addHistory(entry); } catch { problems.push(t('warn.history')); }
     if (problems.length) showToast(t('print.doneWarn', { list: problems.join(' ') }), null, null, 14000);
     else showToast(t('print.done'), null, atLastBatch ? null : { label: t('nextBatch'), onClick: nextBatch }, 10000);
   };

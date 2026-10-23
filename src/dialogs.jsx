@@ -50,8 +50,8 @@ function ConfirmForm({ spec, done }) {
         </div>
       </div>
       <div className="mt-5 flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
-        <button autoFocus onClick={() => done(false)} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">{spec.cancelLabel || t('dlg.cancel')}</button>
-        <button onClick={() => done(true)} className={`rounded-lg px-4 py-2 text-sm font-extrabold text-white ${danger ? 'bg-rose-600 hover:bg-rose-700' : 'bg-violet-600 hover:bg-violet-700'}`}>{spec.confirmLabel || t('dlg.ok')}</button>
+        <button autoFocus={!spec.focusConfirm} onClick={() => done(false)} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">{spec.cancelLabel || t('dlg.cancel')}</button>
+        <button autoFocus={Boolean(spec.focusConfirm)} onClick={() => done(true)} className={`rounded-lg px-4 py-2 text-sm font-extrabold text-white ${danger ? 'bg-rose-600 hover:bg-rose-700' : 'bg-violet-600 hover:bg-violet-700'}`}>{spec.confirmLabel || t('dlg.ok')}</button>
       </div>
     </>
   );
