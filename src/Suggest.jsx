@@ -13,7 +13,7 @@ function Hit({ text, query }) {
  * options: [{ key, primary, secondary }] ya filtradas por el que la usa. onPick(option) al elegir.
  * pickFirstOnEnter: Enter sin flecha elige la primera. onEnter(): Enter cuando no hay nada que elegir.
  */
-export default function Suggest({ value, onChange, options, onPick, onEnter, pickFirstOnEnter = false, placeholder, name, className, maxLength, inputRef, autoFocus, disabled, ariaLabel, footer, emptyText }) {
+export default function Suggest({ value, onChange, options, onPick, onEnter, pickFirstOnEnter = false, onBlur, placeholder, name, className, maxLength, inputRef, autoFocus, disabled, ariaLabel, footer, emptyText }) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -40,7 +40,7 @@ export default function Suggest({ value, onChange, options, onPick, onEnter, pic
         ref={inputRef} name={name} value={value} maxLength={maxLength} autoFocus={autoFocus} disabled={disabled} placeholder={placeholder} aria-label={ariaLabel}
         role="combobox" aria-expanded={Boolean(show)} aria-controls={`${id}-list`} aria-autocomplete="list" aria-activedescendant={active >= 0 ? `${id}-${active}` : undefined}
         autoComplete="off" className={className}
-        onChange={(e) => { onChange(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 120)} onKeyDown={onKeyDown}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onBlur={(e) => { onBlur?.(e); setTimeout(() => setOpen(false), 120); }} onKeyDown={onKeyDown}
       />
       {show && (
         <ul id={`${id}-list`} ref={list} role="listbox" className="absolute z-30 mt-1 max-h-60 w-full overflow-auto rounded-md border border-slate-300 bg-white py-1 text-sm shadow-lg">

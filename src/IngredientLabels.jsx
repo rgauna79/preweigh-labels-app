@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Check, ClipboardPaste, FileUp, Plus, Printer, Save, Trash2, X } from 'lucide-react';
-import Papa from 'papaparse';
+import { AlertTriangle, ArrowLeft, Check, ClipboardPaste, Plus, Printer, Save, Trash2, X } from 'lucide-react';
 import { useLang } from './i18n.js';
 import Toast from './Toast.jsx';
+import Suggest from './Suggest.jsx';
+import { useCatalog } from './catalog.js';
 import IngredientLabel, { checkLabel } from './IngredientLabel.jsx';
 import { DIL_X, DIL_Y, DPI, THRESHOLDS, labelBitmap, testBitmap } from './rasterize.js';
-import { fetchBom, fetchBomIndex, fetchFormulas, fetchItem, writeBom, writeFormulas, writeItems } from './api.js';
+import { fetchBom, fetchBomIndex, fetchFormulas, fetchItem, writeBom, writeFormulas } from './api.js';
 
 const inputCls =
   'w-full px-2.5 py-1.5 border border-slate-300 rounded-md bg-white text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none';
@@ -81,7 +82,6 @@ export default function IngredientLabels({ onBack }) {
   const [toast, setToast] = useState(null);
   const [printJob, setPrintJob] = useState(null); // [{ seq, part, desc }] mientras se imprime
   const toastTimer = useRef(null);
-  const csvRef = useRef(null);
 
   const flash = (text) => {
     clearTimeout(toastTimer.current);
@@ -94,20 +94,43 @@ export default function IngredientLabels({ onBack }) {
     fetchBomIndex().then(setIndex).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Cambiar de fórmula: solo recarga si es otra, y avisa antes de descartar cambios sin guardar
+  const switchFormula = (value) => {
+    const f = norm(value);
+    setFormula(value);
+    if (f === loadedFor.current) return;
+    if (dirty && !window.confirm(t('ing.discard'))) { setFormula(loadedFor.current ?? ''); return; }
+    loadFormula(f);
+  };
+  const formulaOptions = (() => {
+    const q = norm(formula).toLowerCase();
+    if (!q) return [];
+    return formulas
+      .filter((f) => f.formula && (f.formula.toLowerCase().includes(q) || (f.name || '').toLowerCase().includes(q)))
+      .sort((a, b) => (b.formula.toLowerCase().startsWith(q) - a.formula.toLowerCase().startsWith(q)) || a.formula.localeCompare(b.formula))
+      .slice(0, 8)
+      .map((f) => ({ key: f.formula, primary: f.formula, secondary: `${f.name || ''}${index.some((b) => b.formula.toLowerCase() === f.formula.toLowerCase()) ? ' ✓' : ''}` }));
+  })();
+
   const known = useMemo(() => formulas.find((f) => f.formula.toLowerCase() === norm(formula).toLowerCase()), [formulas, formula]);
   const hasList = useMemo(() => index.some((b) => b.formula.toLowerCase() === norm(formula).toLowerCase()), [index, formula]);
   const snapshot = (list) => JSON.stringify(list.map((r) => [parseInt(r.seq, 10) || 0, norm(r.part), norm(r.desc)]));
   const dirty = saved === null ? rows.length > 0 : snapshot(rows) !== saved;
 
   /** Carga la lista guardada de la fórmula escrita (si existe). */
+  const loadedFor = useRef(null); // fórmula cuya lista está en pantalla
+  const loadSeq = useRef(0);
   const loadFormula = async (value = formula) => {
     const f = norm(value);
+    const mine = ++loadSeq.current;
+    loadedFor.current = f;
     save('lm.ing.formula', f);
     if (!f) { setRows([]); setSaved(null); setName(''); setStatus(''); return; }
     setBusy(true);
     setStatus('');
     try {
       const bom = await fetchBom(f);
+      if (mine !== loadSeq.current) return; // llegó tarde: ya se pidió otra fórmula
       const list = bom ? bom.rows.map((r) => newRow(r.seq, r.part, r.desc)) : [];
       setRows(list);
       setSaved(bom ? snapshot(list) : null);
@@ -128,12 +151,15 @@ export default function IngredientLabels({ onBack }) {
   const addRow = () => setRows((rs) => [...rs, newRow(rs.length ? nextSeq(rs) : 10)]);
   const removeRow = (id) => setRows((rs) => rs.filter((r) => r.id !== id));
 
+  const catalog = useCatalog();
+  const byPart = useMemo(() => new Map(catalog.map((i) => [i.part.toLowerCase(), i])), [catalog]);
+
   /** Al salir del número de parte o con Enter: si cambió (o la descripción está vacía) se busca en el catálogo y se reemplaza la descripción. */
   const lookupPart = async (row) => {
     const part = norm(row.part);
     if (!part || (part === row.lp && norm(row.desc))) return;
     try {
-      const item = await fetchItem(part);
+      const item = byPart.get(part.toLowerCase()) || (catalog.length ? null : await fetchItem(part)); // con el catálogo en memoria no hace falta ir al servidor
       patch(row.id, item?.description ? { desc: item.description, lp: part } : { lp: part });
     } catch { /* sin conexión: se escribe a mano */ }
   };
@@ -175,31 +201,6 @@ export default function IngredientLabels({ onBack }) {
     } finally {
       setBusy(false);
     }
-  };
-
-  const importCatalog = (file) => {
-    if (!file) return;
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      transformHeader: (h) => h.replace(/^﻿/, '').trim().toLowerCase(),
-      complete: async ({ data }) => {
-        const items = data
-          .map((r) => ({ part: norm(r.part ?? r['part number'] ?? r.item ?? r['item code']), description: norm(r.description ?? r.desc ?? r.name) }))
-          .filter((r) => r.part);
-        if (!items.length) { setStatus(t('ing.importNone')); return; }
-        setBusy(true);
-        try {
-          for (let i = 0; i < items.length; i += 2000) await writeItems('upsert', items.slice(i, i + 2000));
-          flash(t('ing.imported', { n: items.length }));
-        } catch (e) {
-          setStatus(e.message);
-        } finally {
-          setBusy(false);
-          if (csvRef.current) csvRef.current.value = '';
-        }
-      },
-    });
   };
 
   // --- Impresión: una página de 4 x 2 in por etiqueta
@@ -325,13 +326,10 @@ export default function IngredientLabels({ onBack }) {
               <div className="flex gap-2">
                 <div className="flex-1">
                   <span className="mb-1 block text-[11px] font-bold text-slate-500">{t('lbl.formula')}</span>
-                  <input list="ing-formulas" value={formula} maxLength={20} placeholder={t('ph.formula')} className={inputCls}
-                    onChange={(e) => setFormula(e.target.value)}
-                    onBlur={() => loadFormula()}
-                    onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
-                  <datalist id="ing-formulas">
-                    {index.map((b) => <option key={b.formula} value={b.formula} />)}
-                  </datalist>
+                  <Suggest
+                    value={formula} onChange={setFormula} maxLength={20} placeholder={t('ph.formula')} className={inputCls} emptyText={t('formula.none')}
+                    options={formulaOptions} onPick={(o) => switchFormula(o.key)} onEnter={() => switchFormula(formula)} onBlur={() => switchFormula(formula)}
+                  />
                 </div>
                 <div className="flex-[1.6]">
                   <span className="mb-1 block text-[11px] font-bold text-slate-500">{t('lbl.name')}</span>
@@ -406,8 +404,6 @@ export default function IngredientLabels({ onBack }) {
                 <div className="flex flex-wrap items-center gap-1.5">
                   <button onClick={addRow} className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200"><Plus size={14} /> {t('ing.add')}</button>
                   <button onClick={() => setShowPaste((v) => !v)} className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200"><ClipboardPaste size={14} /> {t('ing.paste')}</button>
-                  <button onClick={() => csvRef.current?.click()} title={t('ing.importHint')} className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200"><FileUp size={14} /> {t('ing.import')}</button>
-                  <input ref={csvRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => importCatalog(e.target.files?.[0])} />
                   <div className="flex-1" />
                   {!dirty && saved !== null ? (
                     <span className="flex items-center gap-1 text-xs font-bold text-emerald-700"><Check size={14} /> {t('ing.upToDate')}</span>
