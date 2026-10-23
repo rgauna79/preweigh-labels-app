@@ -64,12 +64,13 @@ const inputCls =
   'w-full px-3 py-2 border border-slate-300 rounded-md bg-white text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none';
 
 /** Campo con su título visible encima (el texto de ayuda desaparece al escribir, el título no). */
-function Labeled({ label, hint, error, children }) {
+// error: undefined = sin línea de error; '' = línea reservada (sin texto); texto = mensaje. Reservar la línea evita que el formulario "salte" al corregir.
+function Labeled({ label, hint, error, aside, children }) {
   return (
     <label className="block">
-      <span className="mb-1 flex items-center gap-1 text-[11px] font-bold text-slate-500">{label}{hint && <Hint text={hint} />}</span>
+      <span className="mb-1 flex items-center gap-1 text-[11px] font-bold text-slate-500">{label}{hint && <Hint text={hint} />}{aside && <span className="ml-auto">{aside}</span>}</span>
       {children}
-      {error && <span role="alert" className="mt-1 block text-[11px] font-bold text-rose-700">{error}</span>}
+      {error !== undefined && <span role={error ? 'alert' : undefined} className="mt-1 block min-h-[15px] text-[11px] font-bold text-rose-700">{error}</span>}
     </label>
   );
 }
@@ -387,6 +388,7 @@ export default function App({ onOpenIngredients }) {
     const snap = snapshot();
     const n = /^\d+$/.test(norm(data.batch)) ? String(parseInt(data.batch, 10) + 1) : data.batch;
     // Solo cambia el ID: los faltantes y refrigerados se repiten entre batches de la misma fórmula y se conservan
+    setAttempted(false);
     setData((d) => ({ ...d, batch: n, identifier: '' }));
     resetSelection();
     showToast(t('toast.next', { b: n || '—' }), snap);
@@ -414,6 +416,7 @@ export default function App({ onOpenIngredients }) {
   const newBatch = () => {
     const snap = snapshot();
     setData((d) => ({ ...EMPTY, date: dateEdited.current ? d.date : todayStr(), ile: d.ile }));
+    setAttempted(false);
     setJob((j) => ({ ...j, pallets: 1, withMissing: false, withRefer: false }));
     resetSelection();
     scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -430,6 +433,7 @@ export default function App({ onOpenIngredients }) {
   if (job.withRefer && !toItems(data.refer, LIMITS.refer).length) emptyKeys.push('refer');
   const [attempted, setAttempted] = useState(false); // ya intentó imprimir: los campos obligatorios vacíos se marcan en rojo
   const invalid = (k) => attempted && emptyKeys.includes(k);
+  const errProp = (k, label) => (attempted ? (invalid(k) ? t('req.field', { f: label }) : '') : undefined);
   const BAD = '!border-rose-500 !bg-rose-50';
   const fieldOf = { formula: 'formula', name: 'name', batch: 'batch', po: 'po', batches: data.batchesCustom ? 'batches' : 'batchTotal', identifier: 'identifier', missing: 'missing', refer: 'refer' };
   const focusFirstEmpty = () => {
@@ -447,20 +451,23 @@ export default function App({ onOpenIngredients }) {
   );
 
   // Campo con título y límite de caracteres: avisa al acercarse y al llegar al tope
-  const limited = (name, label, placeholder = '') => {
+  const limited = (name, label, placeholder = '', extra = null) => {
     const max = LIMITS[name];
     const n = data[name].length;
     const atLimit = n >= max;
     return (
-      <Labeled label={label}>
+      <Labeled label={label} error={errProp(name, label)} aside={(n >= max * 0.8 || extra) && (
+        <span className="flex items-center gap-2">
+          {n >= max * 0.8 && (
+            <span className={`text-[11px] font-bold ${atLimit ? 'text-rose-700' : 'text-amber-700'}`}>
+              {atLimit ? t('limit.reached', { n, max }) : t('limit.count', { n, max })}
+            </span>
+          )}
+          {extra}
+        </span>
+      )}>
         <input key={name} name={name} value={data[name]} onChange={onChange} maxLength={max} placeholder={placeholder}
           className={`${inputCls} ${atLimit || invalid(name) ? BAD : ''}`} />
-        {invalid(name) && <span role="alert" className="mt-1 block text-[11px] font-bold text-rose-700">{t('req.field', { f: label })}</span>}
-        {n >= max * 0.8 && (
-          <span className={`mt-1 block text-right text-[11px] font-bold ${atLimit ? 'text-rose-700' : 'text-amber-700'}`}>
-            {atLimit ? t('limit.reached', { n, max }) : t('limit.count', { n, max })}
-          </span>
-        )}
       </Labeled>
     );
   };
@@ -523,23 +530,22 @@ export default function App({ onOpenIngredients }) {
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 flex flex-col gap-5" onKeyDown={onEnterNext}>
             <Section title={t('sec.batch')}>
               <div className="grid gap-3">
-                <Labeled label={t('lbl.formula')} hint={t('hint.formula')} error={invalid('formula') ? t('req.field', { f: t('lbl.formula') }) : ''}>
+                <Labeled label={t('lbl.formula')} hint={t('hint.formula')} error={errProp('formula', t('lbl.formula'))}>
                   <Suggest
                     name="formula" value={data.formula} maxLength={LIMITS.formula} autoFocus inputRef={formulaInput}
                     onChange={(v) => applyFormula(v.slice(0, LIMITS.formula))} onPick={(o) => applyFormula(o.key)}
                     options={formulaOptions} placeholder={t('ph.eg', { x: '300909' })} className={`${inputCls} ${invalid('formula') ? BAD : ''}`} emptyText={t('formula.none')}
                   />
                 </Labeled>
-                {limited('name', t('lbl.name'), t('ph.eg', { x: 'Mango Juice Blend' }))}
+                {limited('name', t('lbl.name'), t('ph.eg', { x: 'Mango Juice Blend' }), canSaveFormula && (
+                  <button onClick={(e) => { e.preventDefault(); saveFormula(); }} className="flex items-center gap-1 text-[11px] font-bold normal-case text-violet-700 hover:underline">
+                    <BookmarkPlus size={12} /> {saved ? t('updateName') : t('saveFormula')}
+                  </button>
+                ))}
                 {serverError && (
                   <div role="alert" className="lm-slide flex items-start gap-2 rounded-md border-l-4 border-rose-600 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-900">
                     <AlertTriangle size={16} className="shrink-0 text-rose-600" /> <span className="break-words">{serverError}</span>
                   </div>
-                )}
-                {canSaveFormula && (
-                  <button onClick={saveFormula} className="flex items-center gap-1.5 text-xs font-bold text-violet-700 hover:underline justify-self-start">
-                    <BookmarkPlus size={14} /> {saved ? t('updateName') : t('saveFormula')}
-                  </button>
                 )}
                 {statusObj && (
                   <div role={statusObj.type === 'error' ? 'alert' : 'status'}
@@ -555,12 +561,19 @@ export default function App({ onOpenIngredients }) {
                   </div>
                 )}
                 <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
-                  <Labeled label={t('lbl.batch')} error={invalid('batch') ? t('req.field', { f: t('lbl.batch') }) : ''}>{text('batch', t('ph.eg', { x: '3' }), batchOverTotal ? '!border-rose-500 !bg-rose-50' : '')}</Labeled>
+                  <Labeled label={t('lbl.batch')}>{text('batch', t('ph.eg', { x: '3' }), batchOverTotal ? '!border-rose-500 !bg-rose-50' : '')}</Labeled>
                   <span className="pb-2 text-sm font-extrabold text-slate-400">/</span>
-                  <Labeled label={t('lbl.total')} hint={t('hint.batches')} error={invalid('batches') ? t('req.field', { f: t('lbl.total') }) : ''}>
+                  <Labeled label={t('lbl.total')} hint={t('hint.batches')}>
                     {text('batchTotal', t('ph.eg', { x: '12' }), `${data.batchesCustom ? 'opacity-50' : ''} ${batchOverTotal ? '!border-rose-500 !bg-rose-50' : ''}`, { inputMode: 'numeric' })}
                   </Labeled>
                 </div>
+                {attempted && (
+                  <div className="-mt-2 grid min-h-[15px] grid-cols-[1fr_auto_1fr] gap-2 text-[11px] font-bold text-rose-700">
+                    <span role={invalid('batch') ? 'alert' : undefined}>{invalid('batch') ? t('req.field', { f: t('lbl.batch') }) : ''}</span>
+                    <span className="invisible">/</span>
+                    <span role={invalid('batches') ? 'alert' : undefined}>{invalid('batches') ? t('req.field', { f: t('lbl.total') }) : ''}</span>
+                  </div>
+                )}
                 <div className="-mt-1.5 flex items-center gap-2 text-xs">
                   {data.batchesCustom ? (
                     <input name="batches" value={data.batches} maxLength={LIMITS.batches} onChange={onChange} placeholder={t('batches.customPh')} className={`${inputCls} !py-1.5`} />
@@ -583,7 +596,7 @@ export default function App({ onOpenIngredients }) {
                       )}
                     </div>
                   </Labeled>
-                  <Labeled label={t('lbl.id')} hint={t('hint.id')} error={invalid('identifier') ? t('req.field', { f: t('lbl.id') }) : ''}>
+                  <Labeled label={t('lbl.id')} hint={t('hint.id')} error={errProp('identifier', t('lbl.id'))}>
                     <div className={`flex items-center border rounded-md bg-white ${invalid('identifier') ? 'border-rose-500 bg-rose-50' : 'border-slate-300'} focus-within:ring-2 focus-within:ring-violet-500 focus-within:border-violet-500`}>
                       <span className="pl-3 text-sm font-extrabold text-slate-400 select-none">ID-</span>
                       <input ref={idInput} name="identifier" value={stripId(data.identifier)} maxLength={LIMITS.identifier + 3}
