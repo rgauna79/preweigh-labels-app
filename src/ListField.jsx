@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { clampList, countLines, tidyList } from './limits.js';
 import { useLang } from './i18n.js';
 import { searchParts, useCatalog } from './catalog.js';
+import Suggest from './Suggest.jsx';
 
 const base =
   'w-full resize-y rounded-md border bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-violet-500';
@@ -11,12 +12,12 @@ export default function ListField({ name, value, onChange, limits, placeholder, 
   const { t } = useLang();
   const catalog = useCatalog();
   const [q, setQ] = useState('');
-  const [open, setOpen] = useState(false);
-  const found = useMemo(() => searchParts(catalog, q), [catalog, q]);
+  const found = useMemo(() => searchParts(catalog, q, 10), [catalog, q]);
   const byPart = useMemo(() => new Map(catalog.map((i) => [i.part.toLowerCase(), i])), [catalog]);
   const fmt = (i) => `${i.part} ${i.description}`.trim();
   const addLine = (item) => {
     const cur = String(value).split('\n').map((l) => l.trim()).filter(Boolean);
+    if (cur.some((l) => l.toLowerCase().split(/\s+/)[0] === item.part.toLowerCase())) { setQ(''); return; } // ya está en la lista
     onChange(clampList([...cur, fmt(item)].join('\n'), limits));
     setQ('');
   };
@@ -32,32 +33,19 @@ export default function ListField({ name, value, onChange, limits, placeholder, 
   const color = full ? 'text-rose-700' : near ? 'text-amber-700' : tone === 'rose' ? 'text-rose-700/80' : 'text-sky-700/80';
   return (
     <div className="grid gap-1.5">
-      <div className="relative">
-        <input
-          value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 120)}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (found[0] && !full) addLine(found[0]); } }}
-          disabled={full} placeholder={t('list.findPart')} aria-label={t('list.findPart')}
-          className={`${base} border-slate-300 py-1.5 disabled:opacity-50`}
-        />
-        {open && q.trim() && !full && (
-          <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-slate-300 bg-white text-sm shadow-lg">
-            {found.length ? found.map((i) => (
-              <li key={i.part}>
-                <button type="button" onMouseDown={(e) => { e.preventDefault(); addLine(i); }} className="flex w-full gap-2 px-3 py-1.5 text-left hover:bg-violet-50">
-                  <b className="shrink-0 font-mono text-xs leading-5">{i.part}</b><span className="truncate font-semibold">{i.description}</span>
-                </button>
-              </li>
-            )) : <li className="px-3 py-2 text-xs font-semibold text-slate-400">{catalog.length ? t('list.noPart') : t('list.noCatalog')}</li>}
-          </ul>
-        )}
-      </div>
+      <Suggest
+        value={q} onChange={setQ} options={found.map((i) => ({ key: i.part, primary: i.part, secondary: i.description, item: i }))}
+        onPick={(o) => addLine(o.item)} pickFirstOnEnter onEnter={() => q.trim() && !full && addLine({ part: q.trim(), description: '' })}
+        disabled={full} placeholder={t('list.findPart')} ariaLabel={t('list.findPart')} className={`${base} border-slate-300 py-1.5 disabled:opacity-50`}
+        emptyText={catalog.length ? t('list.noPart') : t('list.noCatalog')} footer={t('list.keys')}
+      />
       <textarea
         name={name}
         value={value}
         rows={5}
         placeholder={placeholder}
         onChange={(e) => onChange(clampList(e.target.value, limits))}
-        onBlur={(e) => onChange(complete(e.target.value))}
+        onBlur={(e) => onChange(clampList(complete(e.target.value), limits))}
         className={`${base} ${full ? 'border-rose-500' : 'border-slate-300'}`}
       />
       <p className={`flex justify-between text-[11px] font-bold ${color}`}>

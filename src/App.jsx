@@ -4,6 +4,7 @@ import { trEn, useLang } from './i18n.js';
 import FormulaManager from './FormulaManager.jsx';
 import ListField from './ListField.jsx';
 import Modal from './Modal.jsx';
+import Suggest from './Suggest.jsx';
 import PartsManager from './PartsManager.jsx';
 import Toast from './Toast.jsx';
 import HistoryModal from './HistoryModal.jsx';
@@ -158,10 +159,10 @@ export default function App({ onOpenIngredients }) {
     set(name, value);
   };
 
-  // Enter pasa al siguiente campo (la fórmula se excluye: ahí Enter elige de la lista de sugerencias)
+  // Enter pasa al siguiente campo (los campos con sugerencias se excluyen: ahí Enter elige de la lista)
   const onEnterNext = (e) => {
     const el = e.target;
-    if (e.key !== 'Enter' || el.tagName !== 'INPUT' || el.type === 'checkbox' || el.type === 'file' || el.name === 'formula') return;
+    if (e.key !== 'Enter' || el.tagName !== 'INPUT' || el.type === 'checkbox' || el.type === 'file' || el.getAttribute('role') === 'combobox') return;
     e.preventDefault();
     const fields = [...e.currentTarget.querySelectorAll('input:not([type=checkbox]):not([type=file]), textarea')];
     fields[fields.indexOf(el) + 1]?.focus();
@@ -277,6 +278,20 @@ export default function App({ onOpenIngredients }) {
 
   const printSet = () => (checks.length ? setConfirmChecks(checks) : doPrint());
 
+  // Ctrl+P usa el mismo flujo que el botón (revisión previa, historial), no la impresión cruda del navegador
+  const printRef = useRef(printSet);
+  printRef.current = printSet;
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p' && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        if (included.length) printRef.current();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [included.length]);
+
   // Al imprimir: la fórmula nueva se agrega a la lista, la impresión queda en el historial y se abre el diálogo.
   const doPrint = async () => {
     setConfirmChecks(null);
@@ -335,6 +350,8 @@ export default function App({ onOpenIngredients }) {
 
   // Siguiente batch de la misma fórmula: batch +1; se conserva todo lo que se repite y solo se vacía el ID.
   const idInput = useRef(null);
+  const formulaInput = useRef(null);
+  const scrollRef = useRef(null); // columna izquierda con scroll
   // Batch y total numéricos: el batch nunca puede ser mayor que el total (no existe el 4/2).
   const isNum = (v) => /^\d+$/.test(norm(v));
   const numericPair = !data.batchesCustom && isNum(data.batch) && isNum(data.batchTotal);
@@ -349,7 +366,8 @@ export default function App({ onOpenIngredients }) {
     setData((d) => ({ ...d, batch: n, identifier: '' }));
     resetSelection();
     showToast(t('toast.next', { b: n || '—' }), snap);
-    idInput.current?.focus(); // lo siguiente que hay que escribir es el ID
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    idInput.current?.focus({ preventScroll: true }); // lo siguiente que hay que escribir es el ID
   };
 
   const clearList = (field) => {
@@ -368,7 +386,10 @@ export default function App({ onOpenIngredients }) {
   const newBatch = () => {
     const snap = snapshot();
     setData((d) => ({ ...EMPTY, date: dateEdited.current ? d.date : todayStr(), ile: d.ile }));
+    setJob((j) => ({ ...j, withMissing: false, withRefer: false }));
     resetSelection();
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    formulaInput.current?.focus({ preventScroll: true });
     showToast(t('toast.cleared'), snap);
   };
 
@@ -402,6 +423,17 @@ export default function App({ onOpenIngredients }) {
       </Labeled>
     );
   };
+
+  const formulaOptions = (() => {
+    const q = norm(data.formula).toLowerCase();
+    if (!q) return [];
+    const rank = (f) => (f.formula.toLowerCase() === q ? 0 : f.formula.toLowerCase().startsWith(q) ? 1 : 2);
+    return formulas
+      .filter((f) => f.formula && (f.formula.toLowerCase().includes(q) || (f.name || '').toLowerCase().includes(q)))
+      .sort((a, b) => rank(a) - rank(b) || a.formula.localeCompare(b.formula))
+      .slice(0, 8)
+      .map((f) => ({ key: f.formula, primary: f.formula, secondary: f.name }));
+  })();
 
   return (
     <>
@@ -439,23 +471,23 @@ export default function App({ onOpenIngredients }) {
             </button>
           </nav>
 
-          <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5" onKeyDown={onEnterNext}>
-            <Section title={t('sec.batch')} action={
-              <button onClick={nextBatch} disabled={atLastBatch} title={atLastBatch ? t('nextBatchLast') : t('nextBatchTitle')}
-                className="flex items-center gap-1 rounded-md bg-violet-100 px-2 py-1 text-[11px] font-bold normal-case tracking-normal text-violet-700 hover:bg-violet-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-violet-100">
-                <ChevronsRight size={13} /> {t('nextBatch')}
-              </button>
-            }>
+          <div className="border-b border-slate-200 bg-white px-4 py-2">
+            <button onClick={nextBatch} disabled={atLastBatch} title={atLastBatch ? t('nextBatchLast') : t('nextBatchTitle')}
+              className="flex w-full items-center justify-center gap-1.5 rounded-md bg-violet-100 px-3 py-2 text-xs font-extrabold text-violet-700 hover:bg-violet-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-violet-100">
+              <ChevronsRight size={14} /> {t('nextBatch')}
+            </button>
+          </div>
+
+          <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 flex flex-col gap-5" onKeyDown={onEnterNext}>
+            <Section title={t('sec.batch')}>
               <div className="grid gap-3">
                 <Labeled label={t('lbl.formula')}>
-                  <input
-                    name="formula" list="formula-list" value={data.formula} maxLength={LIMITS.formula} autoFocus
-                    onChange={(e) => applyFormula(e.target.value.slice(0, LIMITS.formula))} placeholder="300909" className={inputCls}
+                  <Suggest
+                    name="formula" value={data.formula} maxLength={LIMITS.formula} autoFocus inputRef={formulaInput}
+                    onChange={(v) => applyFormula(v.slice(0, LIMITS.formula))} onPick={(o) => applyFormula(o.key)}
+                    options={formulaOptions} placeholder="300909" className={inputCls} emptyText={t('formula.none')}
                   />
                 </Labeled>
-                <datalist id="formula-list">
-                  {formulas.filter((f) => f.formula).map((f, i) => <option key={i} value={f.formula}>{f.name}</option>)}
-                </datalist>
                 {limited('name', t('lbl.name'))}
                 {serverError && (
                   <div role="alert" className="lm-slide flex items-start gap-2 rounded-md border-l-4 border-rose-600 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-900">
