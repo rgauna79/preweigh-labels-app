@@ -171,6 +171,14 @@ export async function fetchRefer(formula) {
   return (await res.json()).refer;
 }
 
+/** Olvida la lista de refrigerados guardada de una fórmula (con PIN si está configurado). */
+export async function deleteRefer(formula) {
+  const res = await withPin(() =>
+    call('refer', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'delete', formula }) })
+  );
+  if (!res.ok) throw new Error(tr('err.server'));
+}
+
 /** Guarda la lista de refrigerados de la fórmula (abierto, como el historial; no pide PIN). */
 export async function saveRefer(formula, refer) {
   const res = await call('refer', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ formula, refer }) });

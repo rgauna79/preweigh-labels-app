@@ -30,7 +30,7 @@ const MAX_ROWS = 80;
 const IL = { part: 30, desc: 80 };
 
 const LEN = { formula: 20, name: 80, ile: 10 };
-const HLEN = { formula: 20, name: 80, batch: 10, batchTotal: 5, batches: 30, po: 130, date: 10, ile: 10, identifier: 12, missing: 600, refer: 700, by: 40 };
+const HLEN = { formula: 20, name: 80, batch: 10, batchTotal: 5, batches: 30, po: 130, date: 10, ile: 10, identifier: 12, missing: 600, refer: 700, by: 40, printed: 200 };
 
 class ApiError extends Error {
   constructor(status, code, message) {

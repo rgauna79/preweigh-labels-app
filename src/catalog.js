@@ -32,5 +32,7 @@ export function searchParts(items, q, max = 8) {
     else if (words.every((w) => p.includes(w) || i.description.toLowerCase().includes(w))) byDesc.push(i);
     if (byPart.length >= max) break;
   }
-  return [...byPart, ...byDesc].slice(0, max);
+  const isBase = (i) => /^\d{6}$/.test(i.part);
+  const base = (l) => [...l.filter(isBase), ...l.filter((i) => !isBase(i))]; // las variantes (700033 A) van después de la parte base
+  return [...base(byPart), ...base(byDesc)].slice(0, max);
 }

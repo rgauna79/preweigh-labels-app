@@ -12,7 +12,7 @@ import SettingsModal from './SettingsModal.jsx';
 import PrintConfirm from './PrintConfirm.jsx';
 import { collectChecks, findIdUse, fmtStamp } from './checks.js';
 import { LIMITS } from './limits.js';
-import { addHistory, deleteLogo, fetchFormulas, fetchHistory, fetchItemCount, fetchRefer, saveRefer, fetchLogo, shrinkImage, uploadLogo, writeFormulas } from './api.js';
+import { addHistory, deleteLogo, fetchFormulas, fetchHistory, fetchItemCount, fetchRefer, saveRefer, deleteRefer, fetchLogo, shrinkImage, uploadLogo, writeFormulas } from './api.js';
 import { LABEL_H, LABEL_W, batchesText, buildSheets, stripId, toItems } from './Labels.jsx';
 
 const MAX_PALLETS = 15; // tope de pallets por batch (lo normal es 1-3; algunos kits llegan a 5-6)
@@ -134,6 +134,7 @@ export default function App({ onOpenIngredients }) {
   };
   const [showPick, setShowPick] = useState(false);
   const resetSelection = () => { setExcluded([]); setPalletFilter(''); };
+  useEffect(() => { resetSelection(); }, [job.pallets]); // al cambiar la cantidad de pallets la selección vuelve a "todo"
 
   // --- Vista previa escalada al ancho disponible ---
   const wrapRef = useRef(null);
@@ -303,6 +304,7 @@ export default function App({ onOpenIngredients }) {
       batches: batchesText(data), po: norm(data.po), date: norm(data.date), ile: norm(data.ile), identifier: stripId(data.identifier),
       pallets: job.pallets, withMissing: job.withMissing, withRefer: job.withRefer,
       missing: job.withMissing ? data.missing : '', refer: job.withRefer ? data.refer : '', by: norm(by),
+      printed: included.length < sheets.length ? included.map((x) => x.key).join(', ') : '', // solo si no se imprimió todo
     };
     if (job.withRefer && trimmedFormula && norm(data.refer) && tidy(data.refer) !== savedRefer) { // la lista de refrigerados queda guardada para esta fórmula
       saveRefer(trimmedFormula, data.refer).then(() => setSavedRefer(tidy(data.refer))).catch(() => {});
@@ -370,6 +372,10 @@ export default function App({ onOpenIngredients }) {
     idInput.current?.focus({ preventScroll: true }); // lo siguiente que hay que escribir es el ID
   };
 
+  const forgetRefer = async () => {
+    if (!window.confirm(t('refer.forgetConfirm', { f: trimmedFormula }))) return;
+    try { await deleteRefer(trimmedFormula); setSavedRefer(null); setStatus(t('refer.forgotten', { f: trimmedFormula }), 'success'); } catch (err) { setStatus(err.message, 'error'); }
+  };
   const clearList = (field) => {
     if (!norm(data[field])) return;
     const snap = snapshot();
@@ -386,7 +392,7 @@ export default function App({ onOpenIngredients }) {
   const newBatch = () => {
     const snap = snapshot();
     setData((d) => ({ ...EMPTY, date: dateEdited.current ? d.date : todayStr(), ile: d.ile }));
-    setJob((j) => ({ ...j, withMissing: false, withRefer: false }));
+    setJob((j) => ({ ...j, pallets: 1, withMissing: false, withRefer: false }));
     resetSelection();
     scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     formulaInput.current?.focus({ preventScroll: true });
@@ -591,7 +597,12 @@ export default function App({ onOpenIngredients }) {
 
             <Section title={t('sec.refer')} action={(
               <span className="flex items-center gap-1.5">
-                {savedRefer != null && tidy(data.refer) === savedRefer && <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700" title={t('refer.savedHint')}>{t('refer.saved')}</span>}
+                {savedRefer != null && (
+                  <span className="flex items-center gap-1 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700" title={t('refer.savedHint')}>
+                    {tidy(data.refer) === savedRefer ? t('refer.saved') : t('refer.savedOther')}
+                    <button onClick={forgetRefer} aria-label={t('refer.forget')} title={t('refer.forget')} className="rounded px-0.5 hover:bg-emerald-200"><X size={10} /></button>
+                  </span>
+                )}
                 {clearBtn('refer')}
               </span>
             )}>

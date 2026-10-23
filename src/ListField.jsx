@@ -34,7 +34,7 @@ export default function ListField({ name, value, onChange, limits, placeholder, 
   return (
     <div className="grid gap-1.5">
       <Suggest
-        value={q} onChange={setQ} options={found.map((i) => ({ key: i.part, primary: i.part, secondary: i.description, item: i }))}
+        value={q} onChange={setQ} options={found.map((i) => ({ key: i.part, primary: i.part, secondary: i.description, item: i, tag: /^\d{6}$/.test(i.part) ? '' : t('list.variant') }))}
         onPick={(o) => addLine(o.item)} pickFirstOnEnter onEnter={() => q.trim() && !full && addLine({ part: q.trim(), description: '' })}
         disabled={full} placeholder={t('list.findPart')} ariaLabel={t('list.findPart')} className={`${base} border-slate-300 py-1.5 disabled:opacity-50`}
         emptyText={catalog.length ? t('list.noPart') : t('list.noCatalog')} footer={t('list.keys')}

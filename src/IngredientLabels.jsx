@@ -3,7 +3,7 @@ import { AlertTriangle, ArrowLeft, Check, ClipboardPaste, Plus, Printer, Save, T
 import { useLang } from './i18n.js';
 import Toast from './Toast.jsx';
 import Suggest from './Suggest.jsx';
-import { useCatalog } from './catalog.js';
+import { searchParts, useCatalog } from './catalog.js';
 import IngredientLabel, { checkLabel } from './IngredientLabel.jsx';
 import { DIL_X, DIL_Y, DPI, THRESHOLDS, labelBitmap, testBitmap } from './rasterize.js';
 import { fetchBom, fetchBomIndex, fetchFormulas, fetchItem, writeBom, writeFormulas } from './api.js';
@@ -362,9 +362,14 @@ export default function IngredientLabels({ onBack }) {
                         </td>
                         <td className="px-1 py-1"><input value={r.seq} inputMode="numeric" maxLength={5} className={`${inputCls} ${stateCls(rowState(r.id, 'seq'))}`}
                           onChange={(e) => patch(r.id, { seq: e.target.value.replace(/\D/g, '') })} /></td>
-                        <td className="px-1 py-1"><input value={r.part} maxLength={30} title={rowState(r.id, 'part') !== 'ok' ? t(rowState(r.id, 'part') === 'cut' ? 'ing.vCut' : 'ing.vSmall', { field: t('ing.part') }) : ''} className={`${inputCls} ${showPart ? stateCls(rowState(r.id, 'part')) : ''}`}
-                          onChange={(e) => patch(r.id, { part: e.target.value })} onBlur={() => lookupPart(r)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); lookupPart(r); } }} /></td>
+                        <td className="px-1 py-1">
+                          <Suggest portal value={r.part} maxLength={30} onChange={(v) => patch(r.id, { part: v })}
+                            title={rowState(r.id, 'part') !== 'ok' ? t(rowState(r.id, 'part') === 'cut' ? 'ing.vCut' : 'ing.vSmall', { field: t('ing.part') }) : ''}
+                            className={`${inputCls} ${showPart ? stateCls(rowState(r.id, 'part')) : ''}`} emptyText={t('list.noPart')}
+                            options={searchParts(catalog, r.part, 8).map((i) => ({ key: i.part, primary: i.part, secondary: i.description, item: i, tag: /^\d{6}$/.test(i.part) ? '' : t('list.variant') }))}
+                            onPick={(o) => patch(r.id, { part: o.item.part, desc: o.item.description, lp: o.item.part })}
+                            onEnter={() => lookupPart(r)} onBlur={() => lookupPart(r)} />
+                        </td>
                         <td className="px-1 py-1"><input value={r.desc} maxLength={80} title={rowState(r.id, 'desc') !== 'ok' ? t(rowState(r.id, 'desc') === 'cut' ? 'ing.vCut' : 'ing.vSmall', { field: t('ing.desc') }) : ''} className={`${inputCls} ${stateCls(rowState(r.id, 'desc'))}`}
                           onChange={(e) => patch(r.id, { desc: e.target.value })} /></td>
                         <td className="pr-2">

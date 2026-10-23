@@ -53,7 +53,15 @@ export default function HistoryModal({ history, error, onLoad, onClose }) {
                   <td className="max-w-[220px] truncate px-2" title={h.name}>{h.name}</td>
                   <td className="whitespace-nowrap px-2 font-semibold">{h.batches || h.batch}</td>
                   <td className="whitespace-nowrap px-2 font-mono text-xs font-bold">{h.identifier ? `ID-${h.identifier}` : '—'}</td>
-                  <td className="px-2 text-center">{h.pallets}</td>
+                  <td className="px-2 text-center">
+                    {h.pallets}
+                    {h.printed && (
+                      <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800"
+                        title={h.printed.split(', ').map((k) => (/^pre\d+$/.test(k) ? t('chip.pre', { i: k.slice(3) }) : /^mis\d+$/.test(k) ? t('chip.mis', { i: k.slice(3) }) : t(`chip.${k}`))).join(' · ')}>
+                        {t('hist.partial')}
+                      </span>
+                    )}
+                  </td>
                   <td className="max-w-[90px] truncate px-2 text-slate-500" title={h.by}>{h.by || '—'}</td>
                   <td className="px-2 text-right">
                     <button onClick={() => onLoad(h)} className="inline-flex items-center gap-1 rounded-md bg-violet-100 px-2.5 py-1 text-xs font-bold text-violet-700 hover:bg-violet-200">
