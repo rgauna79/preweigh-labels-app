@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, BookmarkPlus, CheckCircle2, ChevronsRight, Clock, Eraser, Info, Minus, Plus, Printer, Settings as Cog, HelpCircle, Tag, X } from 'lucide-react';
+import { AlertTriangle, BookmarkPlus, CheckCircle2, ChevronsRight, Clock, Eraser, Info, Minus, Plus, Printer, Settings as Cog, HelpCircle, X } from 'lucide-react';
 import { trEn, useLang } from './i18n.js';
 import FormulaManager from './FormulaManager.jsx';
 import ListField from './ListField.jsx';
@@ -509,20 +509,20 @@ export default function App({ onOpenIngredients }) {
           </header>
 
           <OfflineBanner onRetry={refresh} />
-          <nav className="flex items-center gap-1.5 border-b border-slate-200 bg-slate-50 px-4 py-2" aria-label="Acciones">
-            <button onClick={newBatch} title={t('newTitle')} className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">
+          <nav className="flex flex-wrap items-center gap-1 border-b border-slate-200 bg-slate-50 px-2 py-2" aria-label="Acciones">
+            <button onClick={newBatch} title={t('newTitle')} className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">
               <Eraser size={14} /> {t('new')}
             </button>
-            <button onClick={() => { setShowHistory(true); refresh(); }} className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">
+            <button onClick={() => { setShowHistory(true); refresh(); }} className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">
               <Clock size={14} /> {t('hist.btn')}
             </button>
-            <button onClick={onOpenIngredients} title={t('ing.openTitle')} className="ml-auto flex min-w-0 items-center gap-1.5 rounded-md bg-violet-100 px-2.5 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-200">
-              <Tag size={14} className="shrink-0" /> <span className="truncate">{t('ing.open')}</span>
+            <button onClick={onOpenIngredients} title={t('ing.openTitle')} className="ml-auto flex shrink-0 items-center gap-1.5 rounded-md bg-violet-100 px-2.5 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-200">
+              <span className="whitespace-nowrap">{t('ing.openShort')}</span>
             </button>
-            <button onClick={() => setShowGuide(true)} title={t('help.btn')} aria-label={t('help.btn')} className="shrink-0 rounded-md p-2 text-violet-700 hover:bg-violet-100">
+            <button onClick={() => setShowGuide(true)} title={t('help.btn')} aria-label={t('help.btn')} className="shrink-0 rounded-md p-1.5 text-violet-700 hover:bg-violet-100">
               <HelpCircle size={16} />
             </button>
-            <button onClick={() => setShowSettings(true)} title={t('settings.btn')} aria-label={t('settings.btn')} className="shrink-0 rounded-md p-2 text-slate-700 hover:bg-slate-200">
+            <button onClick={() => setShowSettings(true)} title={t('settings.btn')} aria-label={t('settings.btn')} className="shrink-0 rounded-md p-1.5 text-slate-700 hover:bg-slate-200">
               <Cog size={16} />
             </button>
           </nav>
